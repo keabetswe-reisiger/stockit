@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stockit</title>
+<style>
+  :root {
+    --bg: #faf6f0;
+    --card: #ffffff;
+    --ink: #2b2420;
+    --muted: #8a7f74;
+    --accent: #b5652d;
+    --accent-dark: #8f4d1f;
+    --line: #ece3d8;
+    --danger: #c0392b;
+    --danger-bg: #fbeceb;
+    --good: #3a7d44;
+    --good-bg: #eaf4ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding-bottom: 40px;
+  }
+  header {
+    background: var(--accent);
+    color: #fff;
+    padding: 18px 16px 0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  }
+  header h1 {
+    margin: 0;
+    font-size: 1.4rem;
+    letter-spacing: 0.5px;
+  }
+  header p {
+    margin: 2px 0 0;
+    font-size: 0.8rem;
+    opacity: 0.85;
+  }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-top: 14px;
+  }
+  .tab-btn {
+    flex: 1;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    border: none;
+    padding: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border-radius: 8px 8px 0 0;
+    cursor: pointer;
+    opacity: 0.75;
+  }
+  .tab-btn.active {
+    background: var(--bg);
+    color: var(--accent-dark);
+    opacity: 1;
+  }
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+  .summary-tile {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+  .summary-tile .label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--muted);
+  }
+  .summary-tile .value {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+  .summary-tile.profit .value { color: var(--good); }
+  .summary-tile.loss .value { color: var(--danger); }
+  .summary-note {
+    grid-column: 1 / -1;
+    font-size: 0.78rem;
+    color: var(--danger);
+    text-align: center;
+    padding-top: 2px;
+  }
+
+  .activity-box {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 14px;
+    margin-bottom: 18px;
+  }
+  .activity-box h2 {
+    font-size: 0.75rem;
+    margin: 0 0 8px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .activity-entry {
+    font-size: 0.8rem;
+    padding: 4px 0;
+    border-top: 1px solid var(--line);
+  }
+  .activity-entry:first-of-type { border-top: none; }
+  .activity-time {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    margin-right: 6px;
+  }
+
+  .search-row {
+    margin-bottom: 14px;
+  }
+  .search-row input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 1rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+  }
+  .add-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 18px;
+  }
+  .add-card h2 {
+    font-size: 0.95rem;
+    margin: 0 0 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .add-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .add-row input, .add-row select {
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 0.95rem;
+  }
+  .add-row input[name="name"] { flex: 2 1 140px; }
+  .add-row input[name="qty"] { flex: 1 1 70px; }
+  .add-row select { flex: 1 1 90px; }
+  .add-row input[name="cost"], .add-row input[name="price"] { flex: 1 1 100px; }
+  .add-row input[name="receivedDate"] { flex: 1 1 140px; color: var(--ink); }
+  .add-row .hint {
+    flex: 1 1 100%;
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin: -4px 0 0;
+  }
+  .add-row button {
+    flex: 1 1 100%;
+    margin-top: 6px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 11px;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .add-row button:active { background: var(--accent-dark); }
+
+  .form-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .form-actions button[type="submit"] { flex: 2; }
+  .form-actions .clear-btn {
+    flex: 1;
+    background: var(--bg);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 11px;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .form-actions .clear-btn:active { background: var(--line); }
+
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 40px 10px;
+    font-size: 0.95rem;
+  }
+
+  .item {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .item.low { border-color: var(--danger); }
+  .item-info { flex: 1; min-width: 0; }
+  .item-name {
+    font-weight: 600;
+    font-size: 1.02rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .item-qty {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .item-qty b { color: var(--ink); font-size: 1rem; }
+  .item-date {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .item-margin {
+    font-size: 0.78rem;
+    margin-top: 3px;
+    font-weight: 600;
+  }
+  .item-margin.profit { color: var(--good); }
+  .item-margin.loss { color: var(--danger); }
+  .item-margin.unpriced { color: var(--muted); font-weight: 400; font-style: italic; }
+  .item-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .step-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #fff;
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--accent);
+  }
+  .step-btn:active { background: var(--line); }
+  .icon-btn {
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: none;
+    color: var(--muted);
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .icon-btn.delete { color: var(--danger); }
+
+  .edit-form {
+    background: var(--card);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .edit-form .edit-grid {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .edit-form label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 2px;
+  }
+  .edit-form input, .edit-form select {
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    width: 100%;
+  }
+  .edit-form .field { flex: 1 1 90px; }
+  .edit-form .field.name { flex: 1 1 100%; }
+  .edit-form .edit-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .edit-form .edit-actions button {
+    flex: 1;
+    padding: 9px;
+    border-radius: 8px;
+    border: none;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .edit-form .save-btn { background: var(--accent); color: #fff; }
+  .edit-form .cancel-btn { background: var(--bg); color: var(--muted); border: 1px solid var(--line) !important; }
+
+  .ref-box {
+    background: var(--good-bg);
+    border: 1px solid var(--good);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 18px;
+    font-size: 0.8rem;
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .ref-box b { color: var(--good); }
+
+  .ingredient-lines { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+  .ingredient-line {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .ingredient-line select.ing-item { flex: 2 1 120px; }
+  .ingredient-line input.ing-qty { flex: 1 1 60px; }
+  .ingredient-line select.ing-unit { flex: 1 1 70px; }
+  .ingredient-line input, .ingredient-line select {
+    padding: 9px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 0.9rem;
+  }
+  .ingredient-line .remove-line { flex: 0 0 auto; color: var(--danger); font-size: 1.1rem; }
+  .add-line-btn {
+    background: none;
+    border: 1px dashed var(--line);
+    color: var(--accent);
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin-bottom: 10px;
+    width: 100%;
+  }
+
+  .cost-hint {
+    font-size: 0.8rem;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    min-height: 1.2em;
+  }
+  .cost-hint:empty { display: none; }
+  .add-row button.use-suggested-btn {
+    background: var(--good);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 9px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+
+  .drink {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .drink-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .drink-name { font-weight: 600; font-size: 1.02rem; }
+  .drink-sold { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+  .drink-recipe {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+  .stock-left { font-weight: 600; }
+  .stock-left.stock-out { color: var(--danger); }
+  .drink-margin {
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-top: 6px;
+  }
+  .drink-margin.profit { color: var(--good); }
+  .drink-margin.loss { color: var(--danger); }
+  .drink-issue {
+    font-size: 0.76rem;
+    color: var(--danger);
+    margin-top: 4px;
+    font-style: italic;
+  }
+  .drink-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .drink-actions button {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: none;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .sell-btn { background: var(--accent); color: #fff; flex: 1; }
+  .drink-actions .icon-btn { flex: 0 0 auto; border: 1px solid var(--line); background: #fff; }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.75rem;
+    margin-top: 24px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Stockit</h1>
+  <p>Ingredient &amp; stock counter</p>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="ingredients">Ingredients</button>
+    <button class="tab-btn" data-tab="drinks">Drinks</button>
+  </div>
+</header>
+
+<main>
+
+  <div id="tab-ingredients" class="tab-panel active">
+    <div id="summary"></div>
+
+    <div id="activityLog"></div>
+
+    <div class="search-row">
+      <input id="search" type="text" placeholder="Search items...">
+    </div>
+
+    <div class="add-card">
+      <h2>Add item</h2>
+      <form class="add-row" id="addForm">
+        <input name="name" type="text" placeholder="Item name (e.g. Milk)" required>
+        <input name="qty" type="number" step="any" placeholder="Qty" value="0" required>
+        <select name="unit">
+          <option value="kg">kg</option>
+          <option value="g">g</option>
+          <option value="l">l</option>
+          <option value="ml">ml</option>
+          <option value="pcs">pcs</option>
+          <option value="bags">bags</option>
+          <option value="boxes">boxes</option>
+          <option value="units">units</option>
+        </select>
+        <input name="cost" type="number" step="any" min="0" placeholder="Cost price R">
+        <input name="price" type="number" step="any" min="0" placeholder="Sell price R">
+        <input name="receivedDate" type="date">
+        <div class="hint">Cost = what you pay per unit. Sell = what you charge per unit. Date = when this stock was received. Leave prices blank if unpriced.</div>
+        <div class="form-actions">
+          <button type="submit">Add to stock list</button>
+          <button type="button" class="clear-btn" id="clearAddForm">Clear</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="list"></div>
+  </div>
+
+  <div id="tab-drinks" class="tab-panel">
+    <div id="drinksSummary"></div>
+
+    <div class="ref-box">
+      <b>Quick reference</b> &mdash; double shot &asymp; 18g beans &rarr; 60&ndash;70ml espresso &middot;
+      single shot &asymp; 7&ndash;9g beans &rarr; 30&ndash;45ml &middot;
+      drip coffee &asymp; 12&ndash;15g beans per 240ml water (&asymp;1g per 15&ndash;18ml) &middot;
+      your standard cup size: 340ml.
+      Milk and beans are always entered in ml/g below, never l/kg.<br>
+      Typing <b>Cappuccino</b>, <b>Flat White</b> or <b>(Cafe) Latte</b> auto-fills R25, <b>Americano with milk</b> auto-fills R22, plain/<b>Americano without milk</b> auto-fills R20, and <b>Iced Coffee</b> (same 340ml cup, served cold) auto-fills R30 as the sell price.
+    </div>
+
+    <div class="add-card">
+      <h2>Add drink recipe</h2>
+      <form id="addDrinkForm">
+        <div class="add-row" style="margin-bottom:8px;">
+          <input name="name" type="text" placeholder="Drink name (e.g. Latte)" required style="flex:2 1 140px;">
+          <input name="sellPrice" type="number" step="any" min="0" placeholder="Sell price R" required style="flex:1 1 100px;">
+        </div>
+        <div class="ingredient-lines" id="addIngredientLines"></div>
+        <button type="button" class="add-line-btn" id="addLineBtn">+ Add ingredient</button>
+        <div class="add-row" style="margin-bottom:8px;">
+          <input name="targetMargin" type="number" step="any" min="0" max="99" placeholder="Target margin % (optional)" style="flex:2 1 160px;">
+          <button type="button" class="use-suggested-btn" style="display:none; flex:1 1 140px;">Use suggested price</button>
+        </div>
+        <div class="cost-hint"></div>
+        <div class="form-actions">
+          <button type="submit">Add drink recipe</button>
+          <button type="button" class="clear-btn" id="clearAddDrinkForm">Clear</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="drinksList"></div>
+  </div>
+
+</main>
+
+<footer>Stockit &mdash; data saved on this device only</footer>
+
+<script>
+  const STORAGE_KEY = 'stockit-items-v1';
+  const DRINKS_KEY = 'stockit-drinks-v1';
+  const UNITS = ['kg','g','l','ml','pcs','bags','boxes','units'];
+  const WEIGHT_UNITS = ['g','kg'];
+  const VOLUME_UNITS = ['ml','l'];
+
+  function loadItems() {
+    let raw = [];
+    try {
+      raw = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    } catch {
+      raw = [];
+    }
+    return raw.map(it => ({
+      id: it.id,
+      name: it.name,
+      qty: Number(it.qty) || 0,
+      unit: it.unit || 'units',
+      cost: Number(it.cost) || 0,
+      price: Number(it.price) || 0,
+      receivedDate: it.receivedDate || null,
+    }));
+  }
+
+  function saveItems(items) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  }
+
+  function loadDrinks() {
+    let raw = [];
+    try {
+      raw = JSON.parse(localStorage.getItem(DRINKS_KEY)) || [];
+    } catch {
+      raw = [];
+    }
+    return raw.map(d => ({
+      id: d.id,
+      name: d.name,
+      sellPrice: Number(d.sellPrice) || 0,
+      soldCount: Number(d.soldCount) || 0,
+      ingredients: Array.isArray(d.ingredients) ? d.ingredients.map(ing => ({
+        itemId: ing.itemId,
+        qty: Number(ing.qty) || 0,
+        unit: ing.unit,
+      })) : [],
+    }));
+  }
+
+  function saveDrinks(drinks) {
+    localStorage.setItem(DRINKS_KEY, JSON.stringify(drinks));
+  }
+
+  const ACTIVITY_KEY = 'stockit-activity-v1';
+  const ACTIVITY_LIMIT = 20;
+
+  function loadActivity() {
+    try {
+      return JSON.parse(localStorage.getItem(ACTIVITY_KEY)) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveActivity(activity) {
+    localStorage.setItem(ACTIVITY_KEY, JSON.stringify(activity));
+  }
+
+  function logActivity(drinkName, deductions) {
+    activity.unshift({ id: uid(), ts: new Date().toISOString(), drinkName, deductions });
+    activity = activity.slice(0, ACTIVITY_LIMIT);
+    saveActivity(activity);
+  }
+
+  let items = loadItems();
+  let drinks = loadDrinks();
+  let activity = loadActivity();
+  let editingId = null;
+  let editingDrinkId = null;
+
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function money(n) {
+    const sign = n < 0 ? '-' : '';
+    return `${sign}R${Math.abs(n).toFixed(2)}`;
+  }
+
+  function todayStr() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return null;
+    const [y, m, d] = dateStr.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${parseInt(d, 10)} ${months[parseInt(m, 10) - 1]} ${y}`;
+  }
+
+  function formatQty(q) {
+    return Number.isInteger(q) ? q : parseFloat(q.toFixed(2));
+  }
+
+  function formatTime(ts) {
+    const d = new Date(ts);
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
+    return `${h}:${m}`;
+  }
+
+  function renderActivity() {
+    const el = document.getElementById('activityLog');
+    if (activity.length === 0) {
+      el.innerHTML = '';
+      return;
+    }
+    el.innerHTML = `
+      <div class="activity-box">
+        <h2>Recent activity</h2>
+        ${activity.map(a => `
+          <div class="activity-entry">
+            <span class="activity-time">${formatTime(a.ts)}</span>
+            ${escapeHtml(a.drinkName)} sold &rarr;
+            ${a.deductions.map(d => `-${formatQty(d.qty)}${d.unit} ${escapeHtml(d.name)}`).join(', ')}
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function stepFor(unit) {
+    return (unit === 'kg' || unit === 'l') ? 0.5 : 1;
+  }
+
+  // ---------- unit conversion ----------
+  function unitFamily(u) {
+    if (WEIGHT_UNITS.includes(u)) return 'weight';
+    if (VOLUME_UNITS.includes(u)) return 'volume';
+    return 'count';
+  }
+
+  function compatibleUnits(u) {
+    const fam = unitFamily(u);
+    if (fam === 'weight') return WEIGHT_UNITS;
+    if (fam === 'volume') return VOLUME_UNITS;
+    return [u];
+  }
+
+  function convertQty(qty, fromUnit, toUnit) {
+    if (fromUnit === toUnit) return qty;
+    const fam = unitFamily(fromUnit);
+    if (fam !== unitFamily(toUnit)) return null;
+    if (fam === 'weight') {
+      const grams = fromUnit === 'kg' ? qty * 1000 : qty;
+      return toUnit === 'kg' ? grams / 1000 : grams;
+    }
+    if (fam === 'volume') {
+      const ml = fromUnit === 'l' ? qty * 1000 : qty;
+      return toUnit === 'l' ? ml / 1000 : ml;
+    }
+    return null;
+  }
+
+  // ================= INGREDIENTS TAB =================
+
+  function renderSummary() {
+    const summaryEl = document.getElementById('summary');
+    if (items.length === 0) {
+      summaryEl.innerHTML = '';
+      return;
+    }
+    let costValue = 0, sellValue = 0, profitValue = 0, lossCount = 0, unpricedCount = 0;
+    items.forEach(it => {
+      if (it.cost === 0 && it.price === 0) {
+        unpricedCount++;
+        return;
+      }
+      costValue += it.qty * it.cost;
+      sellValue += it.qty * it.price;
+      profitValue += it.qty * (it.price - it.cost);
+      if (it.price - it.cost < 0) lossCount++;
+    });
+
+    summaryEl.innerHTML = `
+      <div class="summary">
+        <div class="summary-tile">
+          <div class="label">Stock cost value</div>
+          <div class="value">${money(costValue)}</div>
+        </div>
+        <div class="summary-tile">
+          <div class="label">Potential sell value</div>
+          <div class="value">${money(sellValue)}</div>
+        </div>
+        <div class="summary-tile ${profitValue >= 0 ? 'profit' : 'loss'}">
+          <div class="label">${profitValue >= 0 ? 'Potential profit' : 'Potential loss'}</div>
+          <div class="value">${money(profitValue)}</div>
+        </div>
+        <div class="summary-tile ${lossCount > 0 ? 'loss' : ''}">
+          <div class="label">Items priced at a loss</div>
+          <div class="value">${lossCount}</div>
+        </div>
+        ${unpricedCount > 0 ? `<div class="summary-note">${unpricedCount} item${unpricedCount > 1 ? 's' : ''} not priced yet — totals above exclude ${unpricedCount > 1 ? 'them' : 'it'}.</div>` : ''}
+      </div>
+    `;
+  }
+
+  function marginLine(it) {
+    if (it.cost === 0 && it.price === 0) {
+      return `<div class="item-margin unpriced">No price set — tap edit to add cost/sell price</div>`;
+    }
+    const margin = it.price - it.cost;
+    const pct = it.price > 0 ? (margin / it.price * 100) : null;
+    const cls = margin < 0 ? 'loss' : 'profit';
+    const pctText = pct !== null ? ` (${pct.toFixed(0)}%)` : '';
+    const label = margin < 0 ? 'Loss' : 'Profit';
+    return `<div class="item-margin ${cls}">Cost ${money(it.cost)} &middot; Sell ${money(it.price)} &middot; ${label} ${money(margin)}${pctText} /unit</div>`;
+  }
+
+  function renderItems() {
+    renderSummary();
+    renderActivity();
+    const listEl = document.getElementById('list');
+    const query = document.getElementById('search').value.trim().toLowerCase();
+
+    const filtered = items
+      .filter(it => it.name.toLowerCase().includes(query))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (items.length === 0) {
+      listEl.innerHTML = '<div class="empty">No items yet. Add your first ingredient above.</div>';
+      return;
+    }
+    if (filtered.length === 0) {
+      listEl.innerHTML = '<div class="empty">No items match your search.</div>';
+      return;
+    }
+
+    listEl.innerHTML = filtered.map(it => {
+      if (it.id === editingId) return editForm(it);
+      return `
+      <div class="item ${it.qty <= 0 ? 'low' : ''}" data-id="${it.id}">
+        <div class="item-info">
+          <div class="item-name">${escapeHtml(it.name)}</div>
+          <div class="item-qty"><b>${formatQty(it.qty)}</b> ${escapeHtml(it.unit)}</div>
+          ${it.receivedDate ? `<div class="item-date">Received ${formatDate(it.receivedDate)}</div>` : ''}
+          ${marginLine(it)}
+        </div>
+        <div class="item-actions">
+          <button class="step-btn" data-action="dec">&minus;</button>
+          <button class="step-btn" data-action="inc">+</button>
+          <button class="icon-btn" data-action="edit" title="Edit">&#9998;</button>
+          <button class="icon-btn delete" data-action="delete" title="Delete">&times;</button>
+        </div>
+      </div>
+    `;
+    }).join('');
+
+    refreshIngredientItemSelects(addIngredientLines);
+  }
+
+  function editForm(it) {
+    return `
+      <div class="edit-form" data-id="${it.id}">
+        <div class="edit-grid">
+          <div class="field name">
+            <label>Name</label>
+            <input name="name" type="text" value="${escapeHtml(it.name)}">
+          </div>
+          <div class="field">
+            <label>Qty</label>
+            <input name="qty" type="number" step="any" value="${it.qty}">
+          </div>
+          <div class="field">
+            <label>Unit</label>
+            <select name="unit">
+              ${UNITS.map(u => `<option value="${u}" ${u === it.unit ? 'selected' : ''}>${u}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field">
+            <label>Cost price R</label>
+            <input name="cost" type="number" step="any" min="0" value="${it.cost}">
+          </div>
+          <div class="field">
+            <label>Sell price R</label>
+            <input name="price" type="number" step="any" min="0" value="${it.price}">
+          </div>
+          <div class="field">
+            <label>Received date</label>
+            <input name="receivedDate" type="date" value="${it.receivedDate || ''}">
+          </div>
+        </div>
+        <div class="edit-actions">
+          <button type="button" class="save-btn" data-action="save">Save</button>
+          <button type="button" class="cancel-btn" data-action="cancel">Cancel</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function resetAddForm() {
+    const form = document.getElementById('addForm');
+    form.reset();
+    form.receivedDate.value = todayStr();
+  }
+
+  document.getElementById('addForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const form = e.target;
+    const name = form.name.value.trim();
+    const qty = parseFloat(form.qty.value) || 0;
+    const unit = form.unit.value;
+    const cost = parseFloat(form.cost.value) || 0;
+    const price = parseFloat(form.price.value) || 0;
+    const receivedDate = form.receivedDate.value || todayStr();
+    if (!name) return;
+
+    const existing = items.find(it => it.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      existing.qty += qty;
+      if (cost > 0) existing.cost = cost;
+      if (price > 0) existing.price = price;
+      existing.receivedDate = receivedDate;
+    } else {
+      items.push({ id: uid(), name, qty, unit, cost, price, receivedDate });
+    }
+    saveItems(items);
+    resetAddForm();
+    form.name.focus();
+    renderItems();
+  });
+
+  document.getElementById('clearAddForm').addEventListener('click', () => {
+    resetAddForm();
+    document.getElementById('addForm').name.focus();
+  });
+
+  document.getElementById('search').addEventListener('input', renderItems);
+
+  document.getElementById('list').addEventListener('click', e => {
+    const saveBtn = e.target.closest('[data-action="save"]');
+    const cancelBtn = e.target.closest('[data-action="cancel"]');
+
+    if (saveBtn) {
+      const formEl = e.target.closest('.edit-form');
+      const id = formEl.dataset.id;
+      const item = items.find(it => it.id === id);
+      if (item) {
+        const name = formEl.querySelector('[name="name"]').value.trim();
+        const qty = parseFloat(formEl.querySelector('[name="qty"]').value);
+        const cost = parseFloat(formEl.querySelector('[name="cost"]').value);
+        const price = parseFloat(formEl.querySelector('[name="price"]').value);
+        if (name) item.name = name;
+        if (!isNaN(qty)) item.qty = formatQty(Math.max(0, qty));
+        item.unit = formEl.querySelector('[name="unit"]').value;
+        item.cost = isNaN(cost) ? 0 : Math.max(0, cost);
+        item.price = isNaN(price) ? 0 : Math.max(0, price);
+        item.receivedDate = formEl.querySelector('[name="receivedDate"]').value || null;
+        saveItems(items);
+      }
+      editingId = null;
+      renderItems();
+      return;
+    }
+
+    if (cancelBtn) {
+      editingId = null;
+      renderItems();
+      return;
+    }
+
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    const row = e.target.closest('.item');
+    const id = row.dataset.id;
+    const item = items.find(it => it.id === id);
+    if (!item) return;
+
+    const action = btn.dataset.action;
+    if (action === 'inc') {
+      item.qty = formatQty(item.qty + stepFor(item.unit));
+    } else if (action === 'dec') {
+      item.qty = formatQty(Math.max(0, item.qty - stepFor(item.unit)));
+    } else if (action === 'delete') {
+      if (confirm(`Remove "${item.name}" from stock list?`)) {
+        items = items.filter(it => it.id !== id);
+      }
+    } else if (action === 'edit') {
+      editingId = id;
+      renderItems();
+      return;
+    }
+    saveItems(items);
+    renderItems();
+  });
+
+  // ================= DRINKS TAB =================
+
+  function ingredientLineHtml(selectedItemId, qty, unit) {
+    const selectedItem = items.find(i => i.id === selectedItemId);
+    const units = selectedItem ? compatibleUnits(selectedItem.unit) : ['g', 'kg'];
+    const unitToUse = unit && units.includes(unit) ? unit : units[0];
+    return `
+      <div class="ingredient-line">
+        <select class="ing-item">
+          <option value="">Select ingredient&hellip;</option>
+          ${items.map(i => `<option value="${i.id}" ${i.id === selectedItemId ? 'selected' : ''}>${escapeHtml(i.name)}</option>`).join('')}
+        </select>
+        <input class="ing-qty" type="number" step="any" min="0" placeholder="Qty" value="${qty || ''}">
+        <select class="ing-unit">
+          ${units.map(u => `<option value="${u}" ${u === unitToUse ? 'selected' : ''}>${u}</option>`).join('')}
+        </select>
+        <button type="button" class="icon-btn remove-line" title="Remove">&times;</button>
+      </div>
+    `;
+  }
+
+  function addLineTo(container, itemId, qty, unit) {
+    container.insertAdjacentHTML('beforeend', ingredientLineHtml(itemId || '', qty || '', unit || ''));
+  }
+
+  function refreshIngredientItemSelects(container) {
+    container.querySelectorAll('.ingredient-line').forEach(line => {
+      const sel = line.querySelector('.ing-item');
+      const prevVal = sel.value;
+      sel.innerHTML = `<option value="">Select ingredient&hellip;</option>` +
+        items.map(i => `<option value="${i.id}" ${i.id === prevVal ? 'selected' : ''}>${escapeHtml(i.name)}</option>`).join('');
+
+      const unitSelect = line.querySelector('.ing-unit');
+      const currentUnit = unitSelect.value;
+      const selectedItem = items.find(i => i.id === sel.value);
+      const units = selectedItem ? compatibleUnits(selectedItem.unit) : ['g', 'kg'];
+      unitSelect.innerHTML = units.map(u => `<option value="${u}" ${u === currentUnit ? 'selected' : ''}>${u}</option>`).join('');
+    });
+  }
+
+  function wireIngredientLinesContainer(container) {
+    container.addEventListener('change', e => {
+      if (e.target.classList.contains('ing-item')) {
+        const line = e.target.closest('.ingredient-line');
+        const selectedItem = items.find(i => i.id === e.target.value);
+        const unitSelect = line.querySelector('.ing-unit');
+        const units = selectedItem ? compatibleUnits(selectedItem.unit) : ['g', 'kg'];
+        unitSelect.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
+      }
+    });
+    container.addEventListener('click', e => {
+      if (e.target.closest('.remove-line')) {
+        e.target.closest('.ingredient-line').remove();
+      }
+    });
+  }
+
+  function collectIngredientLines(container) {
+    const lines = [];
+    container.querySelectorAll('.ingredient-line').forEach(line => {
+      const itemId = line.querySelector('.ing-item').value;
+      const qty = parseFloat(line.querySelector('.ing-qty').value);
+      const unit = line.querySelector('.ing-unit').value;
+      if (itemId && qty > 0) lines.push({ itemId, qty, unit });
+    });
+    return lines;
+  }
+
+  const addIngredientLines = document.getElementById('addIngredientLines');
+  wireIngredientLinesContainer(addIngredientLines);
+  document.getElementById('addLineBtn').addEventListener('click', () => addLineTo(addIngredientLines));
+  addLineTo(addIngredientLines);
+  wireCostCalculator(document.getElementById('addDrinkForm'));
+
+  function costFromIngredients(ingredients) {
+    let cost = 0;
+    const issues = [];
+    ingredients.forEach(ing => {
+      const item = items.find(i => i.id === ing.itemId);
+      if (!item) {
+        issues.push('an ingredient no longer in stock');
+        return;
+      }
+      const converted = convertQty(ing.qty, ing.unit, item.unit);
+      if (converted === null) {
+        issues.push(`${item.name}'s unit changed and no longer matches this recipe`);
+        return;
+      }
+      cost += converted * item.cost;
+    });
+    return { cost, issues };
+  }
+
+  function recipeCost(drink) {
+    return costFromIngredients(drink.ingredients);
+  }
+
+  function matchDrinkPresetPrice(name) {
+    const n = name.trim().toLowerCase();
+    if (!n) return null;
+    if (n.includes('iced coffee') || n.includes('ice coffee')) return 30;
+    if (n.includes('cappuccino')) return 25;
+    if (n.includes('flat white')) return 25;
+    if (n.includes('latte')) return 25;
+    if (n.includes('americano')) {
+      if (n.includes('no milk') || n.includes('without milk') || n.includes('black')) return 20;
+      if (n.includes('milk')) return 22;
+      return 20;
+    }
+    return null;
+  }
+
+  function wireCostCalculator(formEl) {
+    const container = formEl.querySelector('.ingredient-lines');
+    const marginInput = formEl.querySelector('[name="targetMargin"]');
+    const sellPriceInput = formEl.querySelector('[name="sellPrice"]');
+    const nameInput = formEl.querySelector('[name="name"]');
+    const hintEl = formEl.querySelector('.cost-hint');
+    const useBtn = formEl.querySelector('.use-suggested-btn');
+    if (!container || !marginInput || !hintEl || !useBtn) return;
+
+    if (nameInput && sellPriceInput) {
+      // A price already sitting in the field when we wire up (e.g. an existing saved
+      // drink being edited) counts as a deliberate choice, not something to autofill over.
+      if (sellPriceInput.value !== '' && parseFloat(sellPriceInput.value) !== 0 && !sellPriceInput.dataset.manual) {
+        sellPriceInput.dataset.manual = 'true';
+      }
+      sellPriceInput.addEventListener('input', () => {
+        sellPriceInput.dataset.manual = 'true';
+      });
+      nameInput.addEventListener('input', () => {
+        const preset = matchDrinkPresetPrice(nameInput.value);
+        if (preset !== null && sellPriceInput.dataset.manual !== 'true') {
+          sellPriceInput.value = preset.toFixed(2);
+        }
+      });
+    }
+
+    function recompute() {
+      const { cost, issues } = costFromIngredients(collectIngredientLines(container));
+      const marginPct = parseFloat(marginInput.value);
+      let suggested = null;
+      if (!isNaN(marginPct) && marginPct > 0 && marginPct < 100) {
+        suggested = cost / (1 - marginPct / 100);
+      }
+      hintEl.innerHTML = `Recipe cost so far: <b>${money(cost)}</b>` +
+        (suggested !== null ? ` &middot; at ${marginPct}% margin &rarr; suggested price <b>${money(suggested)}</b>` : '') +
+        (issues.length ? ` <span class="drink-issue">(${issues.join(', ')})</span>` : '');
+      if (suggested !== null) {
+        useBtn.style.display = 'inline-block';
+        useBtn.dataset.suggested = suggested.toFixed(2);
+      } else {
+        useBtn.style.display = 'none';
+      }
+    }
+
+    formEl.addEventListener('input', recompute);
+    formEl.addEventListener('change', recompute);
+    useBtn.addEventListener('click', () => {
+      if (sellPriceInput && useBtn.dataset.suggested) sellPriceInput.value = useBtn.dataset.suggested;
+    });
+    recompute();
+  }
+
+  function recipeLine(ing) {
+    const item = items.find(i => i.id === ing.itemId);
+    if (!item) return `${formatQty(ing.qty)}${ing.unit} (deleted ingredient)`;
+    const stockLow = item.qty <= 0 ? ' stock-out' : '';
+    return `${formatQty(ing.qty)}${ing.unit} ${escapeHtml(item.name)} <span class="stock-left${stockLow}">(${formatQty(item.qty)}${item.unit} left)</span>`;
+  }
+
+  function renderDrinksSummary() {
+    const el = document.getElementById('drinksSummary');
+    if (drinks.length === 0) {
+      el.innerHTML = '';
+      return;
+    }
+    let totalSold = 0, realizedProfit = 0;
+    drinks.forEach(d => {
+      const { cost } = recipeCost(d);
+      totalSold += d.soldCount;
+      realizedProfit += d.soldCount * (d.sellPrice - cost);
+    });
+    el.innerHTML = `
+      <div class="summary">
+        <div class="summary-tile">
+          <div class="label">Cups sold</div>
+          <div class="value">${totalSold}</div>
+        </div>
+        <div class="summary-tile ${realizedProfit >= 0 ? 'profit' : 'loss'}">
+          <div class="label">Realized profit (at current prices)</div>
+          <div class="value">${money(realizedProfit)}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function drinkCard(d) {
+    if (d.id === editingDrinkId) return drinkEditForm(d);
+    const { cost, issues } = recipeCost(d);
+    const margin = d.sellPrice - cost;
+    const pct = d.sellPrice > 0 ? (margin / d.sellPrice * 100) : null;
+    const cls = margin < 0 ? 'loss' : 'profit';
+    const label = margin < 0 ? 'Loss' : 'Profit';
+    return `
+      <div class="drink" data-id="${d.id}">
+        <div class="drink-top">
+          <div>
+            <div class="drink-name">${escapeHtml(d.name)}</div>
+            <div class="drink-sold">${d.soldCount} sold</div>
+          </div>
+          <div class="item-actions">
+            <button class="icon-btn" data-action="edit-drink" title="Edit">&#9998;</button>
+            <button class="icon-btn delete" data-action="delete-drink" title="Delete">&times;</button>
+          </div>
+        </div>
+        <div class="drink-recipe">${d.ingredients.map(recipeLine).join(' &middot; ') || 'No ingredients set'}</div>
+        <div class="drink-margin ${cls}">Cost/cup ${money(cost)} &middot; Sell ${money(d.sellPrice)} &middot; ${label} ${money(margin)}${pct !== null ? ` (${pct.toFixed(0)}%)` : ''}</div>
+        ${issues.length ? `<div class="drink-issue">Fix needed: ${issues.join(', ')}</div>` : ''}
+        <div class="drink-actions">
+          <button type="button" class="sell-btn" data-action="sell">Log 1 sold</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function drinkEditForm(d) {
+    return `
+      <div class="edit-form" data-id="${d.id}">
+        <div class="add-row" style="margin-bottom:8px;">
+          <input name="name" type="text" value="${escapeHtml(d.name)}" style="flex:2 1 140px;">
+          <input name="sellPrice" type="number" step="any" min="0" value="${d.sellPrice}" style="flex:1 1 100px;">
+        </div>
+        <div class="ingredient-lines edit-ingredient-lines">
+          ${d.ingredients.map(ing => ingredientLineHtml(ing.itemId, ing.qty, ing.unit)).join('')}
+        </div>
+        <button type="button" class="add-line-btn" data-action="add-edit-line">+ Add ingredient</button>
+        <div class="add-row" style="margin-bottom:8px;">
+          <input name="targetMargin" type="number" step="any" min="0" max="99" placeholder="Target margin % (optional)" style="flex:2 1 160px;">
+          <button type="button" class="use-suggested-btn" style="display:none; flex:1 1 140px;">Use suggested price</button>
+        </div>
+        <div class="cost-hint"></div>
+        <div class="edit-actions">
+          <button type="button" class="save-btn" data-action="save-drink">Save</button>
+          <button type="button" class="cancel-btn" data-action="cancel-drink">Cancel</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderDrinks() {
+    renderDrinksSummary();
+    const listEl = document.getElementById('drinksList');
+    if (drinks.length === 0) {
+      listEl.innerHTML = '<div class="empty">No drink recipes yet. Add one above.</div>';
+      return;
+    }
+    listEl.innerHTML = drinks
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(drinkCard)
+      .join('');
+
+    if (editingDrinkId) {
+      const formEl = listEl.querySelector('.edit-form');
+      if (formEl) wireCostCalculator(formEl);
+    }
+  }
+
+  function resetAddDrinkForm() {
+    const form = document.getElementById('addDrinkForm');
+    form.reset();
+    addIngredientLines.innerHTML = '';
+    addLineTo(addIngredientLines);
+    form.querySelector('.cost-hint').innerHTML = '';
+    form.querySelector('.use-suggested-btn').style.display = 'none';
+    delete form.querySelector('[name="sellPrice"]').dataset.manual;
+  }
+
+  document.getElementById('addDrinkForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const form = e.target;
+    const name = form.name.value.trim();
+    const sellPrice = parseFloat(form.sellPrice.value) || 0;
+    if (!name) return;
+    const ingredients = collectIngredientLines(addIngredientLines);
+
+    drinks.push({ id: uid(), name, sellPrice, soldCount: 0, ingredients });
+    saveDrinks(drinks);
+
+    resetAddDrinkForm();
+    renderDrinks();
+  });
+
+  document.getElementById('clearAddDrinkForm').addEventListener('click', () => {
+    resetAddDrinkForm();
+    document.getElementById('addDrinkForm').name.focus();
+  });
+
+  document.getElementById('drinksList').addEventListener('change', e => {
+    if (e.target.classList.contains('ing-item')) {
+      const line = e.target.closest('.ingredient-line');
+      const selectedItem = items.find(i => i.id === e.target.value);
+      const unitSelect = line.querySelector('.ing-unit');
+      const units = selectedItem ? compatibleUnits(selectedItem.unit) : ['g', 'kg'];
+      unitSelect.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
+    }
+  });
+
+  document.getElementById('drinksList').addEventListener('click', e => {
+    if (e.target.closest('.remove-line')) {
+      e.target.closest('.ingredient-line').remove();
+      return;
+    }
+
+    if (e.target.closest('[data-action="add-edit-line"]')) {
+      const container = e.target.closest('.edit-form').querySelector('.edit-ingredient-lines');
+      addLineTo(container);
+      return;
+    }
+
+    if (e.target.closest('[data-action="cancel-drink"]')) {
+      editingDrinkId = null;
+      renderDrinks();
+      return;
+    }
+
+    if (e.target.closest('[data-action="save-drink"]')) {
+      const formEl = e.target.closest('.edit-form');
+      const id = formEl.dataset.id;
+      const drink = drinks.find(d => d.id === id);
+      if (drink) {
+        const name = formEl.querySelector('[name="name"]').value.trim();
+        const sellPrice = parseFloat(formEl.querySelector('[name="sellPrice"]').value);
+        if (name) drink.name = name;
+        drink.sellPrice = isNaN(sellPrice) ? 0 : Math.max(0, sellPrice);
+        drink.ingredients = collectIngredientLines(formEl.querySelector('.edit-ingredient-lines'));
+        saveDrinks(drinks);
+      }
+      editingDrinkId = null;
+      renderDrinks();
+      return;
+    }
+
+    const drinkEl = e.target.closest('.drink');
+    if (!drinkEl) return;
+    const id = drinkEl.dataset.id;
+    const drink = drinks.find(d => d.id === id);
+    if (!drink) return;
+
+    if (e.target.closest('[data-action="edit-drink"]')) {
+      editingDrinkId = id;
+      renderDrinks();
+      return;
+    }
+
+    if (e.target.closest('[data-action="delete-drink"]')) {
+      if (confirm(`Delete the "${drink.name}" recipe?`)) {
+        drinks = drinks.filter(d => d.id !== id);
+        saveDrinks(drinks);
+        renderDrinks();
+      }
+      return;
+    }
+
+    if (e.target.closest('[data-action="sell"]')) {
+      logSale(drink);
+    }
+  });
+
+  function logSale(drink) {
+    const needed = [];
+    for (const ing of drink.ingredients) {
+      const item = items.find(i => i.id === ing.itemId);
+      if (!item) {
+        alert(`Can't log a sale — this recipe has an ingredient that no longer exists in stock. Edit the recipe first.`);
+        return;
+      }
+      const qtyInItemUnit = convertQty(ing.qty, ing.unit, item.unit);
+      if (qtyInItemUnit === null) {
+        alert(`Can't log a sale — "${item.name}"'s unit changed and no longer matches this recipe. Edit the recipe first.`);
+        return;
+      }
+      needed.push({ item, qtyInItemUnit });
+    }
+
+    const shortfalls = needed.filter(n => n.item.qty < n.qtyInItemUnit);
+    if (shortfalls.length > 0) {
+      const msg = shortfalls.map(s => `${s.item.name} (need ${formatQty(s.qtyInItemUnit)}${s.item.unit}, have ${formatQty(s.item.qty)}${s.item.unit})`).join(', ');
+      if (!confirm(`Not enough stock for: ${msg}. Log the sale anyway? (stock will drop to 0 for these)`)) {
+        return;
+      }
+    }
+
+    needed.forEach(n => {
+      n.item.qty = formatQty(Math.max(0, n.item.qty - n.qtyInItemUnit));
+    });
+    drink.soldCount += 1;
+
+    const deductions = drink.ingredients.map((ing, i) => ({ name: needed[i].item.name, qty: ing.qty, unit: ing.unit }));
+    logActivity(drink.name, deductions);
+
+    saveItems(items);
+    saveDrinks(drinks);
+    renderAll();
+  }
+
+  // ================= TABS =================
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+    });
+  });
+
+  function renderAll() {
+    renderItems();
+    renderDrinks();
+  }
+
+  document.querySelector('input[name="receivedDate"]').value = todayStr();
+  renderAll();
+</script>
+
+</body>
+</html>
