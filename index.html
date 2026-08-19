@@ -2241,6 +2241,7 @@
 
   let scanReader = null;
   let scanControls = null;
+  let torchOn = false;
   const scanOverlay = document.getElementById('scanOverlay');
   const scanOverlayBody = document.getElementById('scanOverlayBody');
 
@@ -2280,6 +2281,7 @@
     scanOverlayBody.innerHTML = `
       <video id="scanVideo" playsinline muted autoplay></video>
       <p>Fill the frame with the barcode, in good light&hellip;</p>
+      <button type="button" id="scanTorchBtn" class="qr-overlay-close" data-action="toggle-torch" style="display:none;">Turn flashlight on</button>
       <button type="button" class="qr-overlay-close" data-action="close-scan-overlay">Cancel</button>
     `;
   }
@@ -2352,6 +2354,7 @@
 
   async function startScanCamera() {
     renderScanCameraStep();
+    torchOn = false;
     // A dedicated 1D-only reader (not the generic multi-format one, which also
     // searches for QR/Aztec/PDF417/Datamatrix every frame) decodes retail
     // barcodes (EAN-13/UPC/Code128) faster per frame — real handheld phone
@@ -2377,6 +2380,13 @@
           // `error` here is normal per-frame "nothing decoded yet" noise — ignore it.
         }
       );
+      // The library only sets switchTorch when the device/browser actually
+      // supports it (mostly Android Chrome; not supported on iOS Safari) —
+      // keep the button hidden entirely rather than showing one that errors.
+      if (scanControls.switchTorch) {
+        const torchBtn = document.getElementById('scanTorchBtn');
+        if (torchBtn) torchBtn.style.display = 'block';
+      }
     } catch (err) {
       showScanError(err);
     }
@@ -2426,6 +2436,15 @@
     }
     if (e.target.closest('[data-action="scan-another"]')) {
       startScanCamera();
+      return;
+    }
+    const torchBtn = e.target.closest('[data-action="toggle-torch"]');
+    if (torchBtn) {
+      if (scanControls && scanControls.switchTorch) {
+        torchOn = !torchOn;
+        scanControls.switchTorch(torchOn).catch(() => {});
+        torchBtn.textContent = torchOn ? 'Turn flashlight off' : 'Turn flashlight on';
+      }
       return;
     }
     const linkBtn = e.target.closest('[data-action="scan-link-existing"]');
