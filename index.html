@@ -400,6 +400,18 @@
     cursor: pointer;
   }
 
+  .size-block {
+    border-top: 1px dashed var(--line);
+    padding-top: 10px;
+    margin-top: 10px;
+  }
+  .size-block:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+  .drink-size-row + .drink-size-row {
+    border-top: 1px dashed var(--line);
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+
   .drink {
     background: var(--card);
     border: 1px solid var(--line);
@@ -551,16 +563,10 @@
       <h2>Add drink recipe</h2>
       <form id="addDrinkForm">
         <div class="add-row" style="margin-bottom:8px;">
-          <input name="name" type="text" placeholder="Drink name (e.g. Latte)" required style="flex:2 1 140px;">
-          <input name="sellPrice" type="number" step="any" min="0" placeholder="Sell price R" required style="flex:1 1 100px;">
+          <input name="name" type="text" placeholder="Drink name (e.g. Latte)" required style="flex:1 1 100%;">
         </div>
-        <div class="ingredient-lines" id="addIngredientLines"></div>
-        <button type="button" class="add-line-btn" id="addLineBtn">+ Add ingredient</button>
-        <div class="add-row" style="margin-bottom:8px;">
-          <input name="targetMargin" type="number" step="any" min="0" max="99" placeholder="Target margin % (optional)" style="flex:2 1 160px;">
-          <button type="button" class="use-suggested-btn" style="display:none; flex:1 1 140px;">Use suggested price</button>
-        </div>
-        <div class="cost-hint"></div>
+        <div id="addSizeBlocks"></div>
+        <button type="button" class="add-line-btn" id="addSizeBtn">+ Add another size</button>
         <div class="form-actions">
           <button type="submit">Add drink recipe</button>
           <button type="button" class="clear-btn" id="clearAddDrinkForm">Clear</button>
@@ -632,6 +638,19 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }
 
+  function normalizeSize(s) {
+    return {
+      name: s.name || 'Regular',
+      sellPrice: Number(s.sellPrice) || 0,
+      soldCount: Number(s.soldCount) || 0,
+      ingredients: Array.isArray(s.ingredients) ? s.ingredients.map(ing => ({
+        itemId: ing.itemId,
+        qty: Number(ing.qty) || 0,
+        unit: ing.unit,
+      })) : [],
+    };
+  }
+
   function loadDrinks() {
     let raw = [];
     try {
@@ -639,17 +658,15 @@
     } catch {
       raw = [];
     }
-    return raw.map(d => ({
-      id: d.id,
-      name: d.name,
-      sellPrice: Number(d.sellPrice) || 0,
-      soldCount: Number(d.soldCount) || 0,
-      ingredients: Array.isArray(d.ingredients) ? d.ingredients.map(ing => ({
-        itemId: ing.itemId,
-        qty: Number(ing.qty) || 0,
-        unit: ing.unit,
-      })) : [],
-    }));
+    return raw.map(d => {
+      // Legacy drinks (pre-multi-size) stored one flat recipe/price directly on
+      // the drink; wrap that into a single "Regular" size so old saved data
+      // upgrades transparently instead of losing its recipe/soldCount history.
+      const sizes = (Array.isArray(d.sizes) && d.sizes.length > 0)
+        ? d.sizes.map(normalizeSize)
+        : [normalizeSize({ name: 'Regular', sellPrice: d.sellPrice, soldCount: d.soldCount, ingredients: d.ingredients })];
+      return { id: d.id, name: d.name, sizes };
+    });
   }
 
   function saveDrinks(drinks) {
@@ -949,7 +966,7 @@
       return itemCardHtml(it);
     }).join('');
 
-    refreshIngredientItemSelects(addIngredientLines);
+    document.querySelectorAll('.ingredient-lines').forEach(refreshIngredientItemSelects);
   }
 
   function reorderLine(it) {
@@ -1221,12 +1238,6 @@
     return lines;
   }
 
-  const addIngredientLines = document.getElementById('addIngredientLines');
-  wireIngredientLinesContainer(addIngredientLines);
-  document.getElementById('addLineBtn').addEventListener('click', () => addLineTo(addIngredientLines));
-  addLineTo(addIngredientLines);
-  wireCostCalculator(document.getElementById('addDrinkForm'));
-
   function costFromIngredients(ingredients) {
     let cost = 0;
     const issues = [];
@@ -1246,10 +1257,6 @@
     return { cost, issues };
   }
 
-  function recipeCost(drink) {
-    return costFromIngredients(drink.ingredients);
-  }
-
   function matchDrinkPresetPrice(name) {
     const n = name.trim().toLowerCase();
     if (!n) return null;
@@ -1265,13 +1272,38 @@
     return null;
   }
 
-  function wireCostCalculator(formEl) {
-    const container = formEl.querySelector('.ingredient-lines');
-    const marginInput = formEl.querySelector('[name="targetMargin"]');
-    const sellPriceInput = formEl.querySelector('[name="sellPrice"]');
-    const nameInput = formEl.querySelector('[name="name"]');
-    const hintEl = formEl.querySelector('.cost-hint');
-    const useBtn = formEl.querySelector('.use-suggested-btn');
+  function sizeBlockHtml(size, originalIndex) {
+    size = size || {};
+    originalIndex = (originalIndex === undefined) ? -1 : originalIndex;
+    const ingredients = Array.isArray(size.ingredients) && size.ingredients.length > 0 ? size.ingredients : null;
+    return `
+      <div class="size-block" data-original-index="${originalIndex}">
+        <div class="add-row" style="margin-bottom:8px;">
+          <input name="sizeName" type="text" placeholder="Size name (e.g. Regular)" value="${escapeHtml(size.name || '')}" style="flex:2 1 140px;">
+          <input name="sellPrice" type="number" step="any" min="0" placeholder="Sell price R" value="${size.sellPrice || ''}" style="flex:1 1 100px;">
+          <button type="button" class="icon-btn delete" data-action="remove-size" title="Remove this size">&times;</button>
+        </div>
+        <div class="ingredient-lines">
+          ${ingredients ? ingredients.map(ing => ingredientLineHtml(ing.itemId, ing.qty, ing.unit)).join('') : ingredientLineHtml('', '', '')}
+        </div>
+        <button type="button" class="add-line-btn" data-action="add-ingredient-line">+ Add ingredient</button>
+        <div class="add-row" style="margin-bottom:8px;">
+          <input name="targetMargin" type="number" step="any" min="0" max="99" placeholder="Target margin % (optional)" style="flex:2 1 160px;">
+          <button type="button" class="use-suggested-btn" style="display:none; flex:1 1 140px;">Use suggested price</button>
+        </div>
+        <div class="cost-hint"></div>
+      </div>
+    `;
+  }
+
+  function wireSizeBlockCostCalculator(blockEl, opts) {
+    opts = opts || {};
+    const nameInput = opts.nameInput || null;
+    const container = blockEl.querySelector('.ingredient-lines');
+    const marginInput = blockEl.querySelector('[name="targetMargin"]');
+    const sellPriceInput = blockEl.querySelector('[name="sellPrice"]');
+    const hintEl = blockEl.querySelector('.cost-hint');
+    const useBtn = blockEl.querySelector('.use-suggested-btn');
     if (!container || !marginInput || !hintEl || !useBtn) return;
 
     if (nameInput && sellPriceInput) {
@@ -1309,13 +1341,55 @@
       }
     }
 
-    formEl.addEventListener('input', recompute);
-    formEl.addEventListener('change', recompute);
+    blockEl.addEventListener('input', recompute);
+    blockEl.addEventListener('change', recompute);
     useBtn.addEventListener('click', () => {
       if (sellPriceInput && useBtn.dataset.suggested) sellPriceInput.value = useBtn.dataset.suggested;
     });
     recompute();
   }
+
+  function addSizeBlock(container, size, nameInputForFirst) {
+    container.insertAdjacentHTML('beforeend', sizeBlockHtml(size, -1));
+    const blockEl = container.lastElementChild;
+    wireIngredientLinesContainer(blockEl.querySelector('.ingredient-lines'));
+    wireSizeBlockCostCalculator(blockEl, { nameInput: nameInputForFirst });
+    return blockEl;
+  }
+
+  function collectSizesFromForm(formEl, existingSizes) {
+    const blocks = formEl.querySelectorAll('.size-block');
+    return Array.from(blocks).map(block => {
+      const name = block.querySelector('[name="sizeName"]').value.trim() || 'Regular';
+      const sellPrice = parseFloat(block.querySelector('[name="sellPrice"]').value) || 0;
+      const ingredients = collectIngredientLines(block.querySelector('.ingredient-lines'));
+      const origIdx = parseInt(block.dataset.originalIndex, 10);
+      const soldCount = (existingSizes && origIdx >= 0 && existingSizes[origIdx]) ? existingSizes[origIdx].soldCount : 0;
+      return { name, sellPrice, soldCount, ingredients };
+    });
+  }
+
+  const addSizeBlocksEl = document.getElementById('addSizeBlocks');
+  addSizeBlock(addSizeBlocksEl, null, document.getElementById('addDrinkForm').querySelector('[name="name"]'));
+
+  document.getElementById('addSizeBtn').addEventListener('click', () => {
+    addSizeBlock(addSizeBlocksEl, null, null);
+  });
+
+  document.getElementById('addDrinkForm').addEventListener('click', e => {
+    if (e.target.closest('[data-action="add-ingredient-line"]')) {
+      const container = e.target.closest('.size-block').querySelector('.ingredient-lines');
+      addLineTo(container);
+      return;
+    }
+    if (e.target.closest('[data-action="remove-size"]')) {
+      if (addSizeBlocksEl.querySelectorAll('.size-block').length <= 1) {
+        alert('A drink needs at least one size.');
+        return;
+      }
+      e.target.closest('.size-block').remove();
+    }
+  });
 
   function recipeLine(ing) {
     const item = items.find(i => i.id === ing.itemId);
@@ -1332,9 +1406,11 @@
     }
     let totalSold = 0, realizedProfit = 0;
     drinks.forEach(d => {
-      const { cost } = recipeCost(d);
-      totalSold += d.soldCount;
-      realizedProfit += d.soldCount * (d.sellPrice - cost);
+      d.sizes.forEach(size => {
+        const { cost } = costFromIngredients(size.ingredients);
+        totalSold += size.soldCount;
+        realizedProfit += size.soldCount * (size.sellPrice - cost);
+      });
     });
     el.innerHTML = `
       <div class="summary">
@@ -1350,31 +1426,44 @@
     `;
   }
 
-  function drinkCard(d) {
-    if (d.id === editingDrinkId) return drinkEditForm(d);
-    const { cost, issues } = recipeCost(d);
-    const margin = d.sellPrice - cost;
-    const pct = d.sellPrice > 0 ? (margin / d.sellPrice * 100) : null;
+  function sizeRowHtml(d, size, idx) {
+    const { cost, issues } = costFromIngredients(size.ingredients);
+    const margin = size.sellPrice - cost;
+    const pct = size.sellPrice > 0 ? (margin / size.sellPrice * 100) : null;
     const cls = margin < 0 ? 'loss' : 'profit';
     const label = margin < 0 ? 'Loss' : 'Profit';
+    const namePrefix = d.sizes.length > 1 ? `${escapeHtml(size.name)} &mdash; ` : '';
+    const sellLabel = d.sizes.length > 1 ? ` (${escapeHtml(size.name)})` : '';
+    return `
+      <div class="drink-size-row">
+        <div class="drink-recipe">${namePrefix}${size.ingredients.map(recipeLine).join(' &middot; ') || 'No ingredients set'}</div>
+        <div class="drink-margin ${cls}">Cost/cup ${money(cost)} &middot; Sell ${money(size.sellPrice)} &middot; ${label} ${money(margin)}${pct !== null ? ` (${pct.toFixed(0)}%)` : ''}</div>
+        ${issues.length ? `<div class="drink-issue">Fix needed: ${issues.join(', ')}</div>` : ''}
+        <div class="drink-actions">
+          <button type="button" class="sell-btn" data-action="sell" data-size-idx="${idx}">Log 1 sold${sellLabel}</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function drinkCard(d) {
+    if (d.id === editingDrinkId) return drinkEditForm(d);
+    const soldText = d.sizes.length > 1
+      ? d.sizes.map(s => `${s.soldCount} ${escapeHtml(s.name)}`).join(', ')
+      : `${d.sizes[0].soldCount} sold`;
     return `
       <div class="drink" data-id="${d.id}">
         <div class="drink-top">
           <div>
             <div class="drink-name">${escapeHtml(d.name)}</div>
-            <div class="drink-sold">${d.soldCount} sold</div>
+            <div class="drink-sold">${soldText}</div>
           </div>
           <div class="item-actions">
             <button class="icon-btn" data-action="edit-drink" title="Edit">&#9998;</button>
             <button class="icon-btn delete" data-action="delete-drink" title="Delete">&times;</button>
           </div>
         </div>
-        <div class="drink-recipe">${d.ingredients.map(recipeLine).join(' &middot; ') || 'No ingredients set'}</div>
-        <div class="drink-margin ${cls}">Cost/cup ${money(cost)} &middot; Sell ${money(d.sellPrice)} &middot; ${label} ${money(margin)}${pct !== null ? ` (${pct.toFixed(0)}%)` : ''}</div>
-        ${issues.length ? `<div class="drink-issue">Fix needed: ${issues.join(', ')}</div>` : ''}
-        <div class="drink-actions">
-          <button type="button" class="sell-btn" data-action="sell">Log 1 sold</button>
-        </div>
+        ${d.sizes.map((size, idx) => sizeRowHtml(d, size, idx)).join('')}
       </div>
     `;
   }
@@ -1383,18 +1472,12 @@
     return `
       <div class="edit-form" data-id="${d.id}">
         <div class="add-row" style="margin-bottom:8px;">
-          <input name="name" type="text" value="${escapeHtml(d.name)}" style="flex:2 1 140px;">
-          <input name="sellPrice" type="number" step="any" min="0" value="${d.sellPrice}" style="flex:1 1 100px;">
+          <input name="name" type="text" value="${escapeHtml(d.name)}" style="flex:1 1 100%;">
         </div>
-        <div class="ingredient-lines edit-ingredient-lines">
-          ${d.ingredients.map(ing => ingredientLineHtml(ing.itemId, ing.qty, ing.unit)).join('')}
+        <div class="edit-size-blocks">
+          ${d.sizes.map((size, idx) => sizeBlockHtml(size, idx)).join('')}
         </div>
-        <button type="button" class="add-line-btn" data-action="add-edit-line">+ Add ingredient</button>
-        <div class="add-row" style="margin-bottom:8px;">
-          <input name="targetMargin" type="number" step="any" min="0" max="99" placeholder="Target margin % (optional)" style="flex:2 1 160px;">
-          <button type="button" class="use-suggested-btn" style="display:none; flex:1 1 140px;">Use suggested price</button>
-        </div>
-        <div class="cost-hint"></div>
+        <button type="button" class="add-line-btn" data-action="add-size">+ Add another size</button>
         <div class="edit-actions">
           <button type="button" class="save-btn" data-action="save-drink">Save</button>
           <button type="button" class="cancel-btn" data-action="cancel-drink">Cancel</button>
@@ -1417,29 +1500,32 @@
 
     if (editingDrinkId) {
       const formEl = listEl.querySelector('.edit-form');
-      if (formEl) wireCostCalculator(formEl);
+      if (formEl) {
+        const nameInput = formEl.querySelector('[name="name"]');
+        formEl.querySelectorAll('.size-block').forEach((block, idx) => {
+          wireIngredientLinesContainer(block.querySelector('.ingredient-lines'));
+          wireSizeBlockCostCalculator(block, { nameInput: idx === 0 ? nameInput : null });
+        });
+      }
     }
   }
 
   function resetAddDrinkForm() {
     const form = document.getElementById('addDrinkForm');
     form.reset();
-    addIngredientLines.innerHTML = '';
-    addLineTo(addIngredientLines);
-    form.querySelector('.cost-hint').innerHTML = '';
-    form.querySelector('.use-suggested-btn').style.display = 'none';
-    delete form.querySelector('[name="sellPrice"]').dataset.manual;
+    addSizeBlocksEl.innerHTML = '';
+    addSizeBlock(addSizeBlocksEl, null, form.querySelector('[name="name"]'));
   }
 
   document.getElementById('addDrinkForm').addEventListener('submit', e => {
     e.preventDefault();
     const form = e.target;
     const name = form.name.value.trim();
-    const sellPrice = parseFloat(form.sellPrice.value) || 0;
     if (!name) return;
-    const ingredients = collectIngredientLines(addIngredientLines);
+    const sizes = collectSizesFromForm(form);
+    if (sizes.length === 0) return;
 
-    drinks.push({ id: uid(), name, sellPrice, soldCount: 0, ingredients });
+    drinks.push({ id: uid(), name, sizes });
     saveDrinks(drinks);
 
     resetAddDrinkForm();
@@ -1467,9 +1553,26 @@
       return;
     }
 
-    if (e.target.closest('[data-action="add-edit-line"]')) {
-      const container = e.target.closest('.edit-form').querySelector('.edit-ingredient-lines');
+    if (e.target.closest('[data-action="add-ingredient-line"]')) {
+      const container = e.target.closest('.size-block').querySelector('.ingredient-lines');
       addLineTo(container);
+      return;
+    }
+
+    if (e.target.closest('[data-action="remove-size"]')) {
+      const formEl = e.target.closest('.edit-form');
+      if (formEl.querySelectorAll('.size-block').length <= 1) {
+        alert('A drink needs at least one size.');
+        return;
+      }
+      e.target.closest('.size-block').remove();
+      return;
+    }
+
+    if (e.target.closest('[data-action="add-size"]')) {
+      const formEl = e.target.closest('.edit-form');
+      const container = formEl.querySelector('.edit-size-blocks');
+      addSizeBlock(container, null, null);
       return;
     }
 
@@ -1485,10 +1588,9 @@
       const drink = drinks.find(d => d.id === id);
       if (drink) {
         const name = formEl.querySelector('[name="name"]').value.trim();
-        const sellPrice = parseFloat(formEl.querySelector('[name="sellPrice"]').value);
         if (name) drink.name = name;
-        drink.sellPrice = isNaN(sellPrice) ? 0 : Math.max(0, sellPrice);
-        drink.ingredients = collectIngredientLines(formEl.querySelector('.edit-ingredient-lines'));
+        const sizes = collectSizesFromForm(formEl, drink.sizes);
+        if (sizes.length > 0) drink.sizes = sizes;
         saveDrinks(drinks);
       }
       editingDrinkId = null;
@@ -1517,14 +1619,18 @@
       return;
     }
 
-    if (e.target.closest('[data-action="sell"]')) {
-      logSale(drink);
+    const sellBtn = e.target.closest('[data-action="sell"]');
+    if (sellBtn) {
+      logSale(drink, parseInt(sellBtn.dataset.sizeIdx, 10) || 0);
     }
   });
 
-  function logSale(drink) {
+  function logSale(drink, sizeIdx) {
+    const size = drink.sizes[sizeIdx];
+    if (!size) return;
+
     const needed = [];
-    for (const ing of drink.ingredients) {
+    for (const ing of size.ingredients) {
       const item = items.find(i => i.id === ing.itemId);
       if (!item) {
         alert(`Can't log a sale — this recipe has an ingredient that no longer exists in stock. Edit the recipe first.`);
@@ -1552,26 +1658,27 @@
       n.item.qty = formatQty(Math.max(0, n.item.qty - n.qtyInItemUnit));
       n.actualRemoved = qtyBefore - n.item.qty;
     });
-    drink.soldCount += 1;
+    size.soldCount += 1;
 
-    const { cost } = recipeCost(drink);
+    const { cost } = costFromIngredients(size.ingredients);
     const saleId = uid();
+    const multiSize = drink.sizes.length > 1;
     const ledgerDeductions = needed.map(n => ({ itemId: n.item.id, name: n.item.name, qtyItemUnit: n.actualRemoved, unit: n.item.unit }));
     recordSale({
       id: saleId,
       ts: new Date().toISOString(),
       drinkId: drink.id,
       drinkName: drink.name,
-      sizeName: null,
-      sellPrice: drink.sellPrice,
+      sizeName: multiSize ? size.name : null,
+      sellPrice: size.sellPrice,
       cost,
       deductions: ledgerDeductions,
       hadShortfall,
       undone: false,
     });
 
-    const deductions = drink.ingredients.map((ing, i) => ({ name: needed[i].item.name, qty: ing.qty, unit: ing.unit }));
-    logActivity(drink.name, deductions, saleId);
+    const deductions = size.ingredients.map((ing, i) => ({ name: needed[i].item.name, qty: ing.qty, unit: ing.unit }));
+    logActivity(multiSize ? `${drink.name} (${size.name})` : drink.name, deductions, saleId);
 
     saveItems(items);
     saveDrinks(drinks);
@@ -1599,7 +1706,10 @@
     });
 
     const drink = drinks.find(dr => dr.id === target.drinkId);
-    if (drink) drink.soldCount = Math.max(0, drink.soldCount - 1);
+    if (drink) {
+      const size = target.sizeName ? drink.sizes.find(s => s.name === target.sizeName) : drink.sizes[0];
+      if (size) size.soldCount = Math.max(0, size.soldCount - 1);
+    }
 
     target.undone = true;
     saveSales(sales);
