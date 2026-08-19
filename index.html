@@ -17,6 +17,8 @@
     --danger-bg: #fbeceb;
     --good: #3a7d44;
     --good-bg: #eaf4ec;
+    --warn: #b8860b;
+    --warn-bg: #fdf3e0;
   }
   * { box-sizing: border-box; }
   body {
@@ -55,8 +57,8 @@
     background: rgba(255,255,255,0.15);
     color: #fff;
     border: none;
-    padding: 10px;
-    font-size: 0.9rem;
+    padding: 8px 4px;
+    font-size: 0.8rem;
     font-weight: 600;
     border-radius: 8px 8px 0 0;
     cursor: pointer;
@@ -174,6 +176,7 @@
   .add-row input[name="qty"] { flex: 1 1 70px; }
   .add-row select { flex: 1 1 90px; }
   .add-row input[name="cost"], .add-row input[name="price"] { flex: 1 1 100px; }
+  .add-row input[name="reorderPoint"] { flex: 1 1 130px; }
   .add-row input[name="receivedDate"] { flex: 1 1 140px; color: var(--ink); }
   .add-row .hint {
     flex: 1 1 100%;
@@ -230,6 +233,7 @@
     gap: 10px;
   }
   .item.low { border-color: var(--danger); }
+  .item.below-reorder { border-color: var(--warn); }
   .item-info { flex: 1; min-width: 0; }
   .item-name {
     font-weight: 600;
@@ -257,6 +261,12 @@
   .item-margin.profit { color: var(--good); }
   .item-margin.loss { color: var(--danger); }
   .item-margin.unpriced { color: var(--muted); font-weight: 400; font-style: italic; }
+  .item-reorder-warning {
+    font-size: 0.78rem;
+    margin-top: 3px;
+    font-weight: 600;
+    color: var(--warn);
+  }
   .item-actions {
     display: flex;
     align-items: center;
@@ -456,6 +466,7 @@
   <p>Ingredient &amp; stock counter</p>
   <div class="tabs">
     <button class="tab-btn active" data-tab="ingredients">Ingredients</button>
+    <button class="tab-btn" data-tab="shopping">Shopping</button>
     <button class="tab-btn" data-tab="drinks">Drinks</button>
     <button class="tab-btn" data-tab="backup">Backup</button>
   </div>
@@ -489,8 +500,9 @@
         </select>
         <input name="cost" type="number" step="any" min="0" placeholder="Cost price R">
         <input name="price" type="number" step="any" min="0" placeholder="Sell price R">
+        <input name="reorderPoint" type="number" step="any" min="0" placeholder="Reorder at (optional)">
         <input name="receivedDate" type="date">
-        <div class="hint">Cost = what you pay per unit. Sell = what you charge per unit. Date = when this stock was received. Leave prices blank if unpriced.</div>
+        <div class="hint">Cost = what you pay per unit. Sell = what you charge per unit. Reorder at = get a low-stock warning once qty drops to/below this. Date = when this stock was received. Leave any of these blank if not needed.</div>
         <div class="form-actions">
           <button type="submit">Add to stock list</button>
           <button type="button" class="clear-btn" id="clearAddForm">Clear</button>
@@ -499,6 +511,11 @@
     </div>
 
     <div id="list"></div>
+  </div>
+
+  <div id="tab-shopping" class="tab-panel">
+    <div id="shoppingSummary"></div>
+    <div id="shoppingList"></div>
   </div>
 
   <div id="tab-drinks" class="tab-panel">
@@ -576,6 +593,7 @@
       unit: it.unit || 'units',
       cost: Number(it.cost) || 0,
       price: Number(it.price) || 0,
+      reorderPoint: Number(it.reorderPoint) || 0,
       receivedDate: it.receivedDate || null,
     }));
   }
@@ -827,6 +845,7 @@
   function renderItems() {
     renderSummary();
     renderActivity();
+    renderShoppingList();
     const listEl = document.getElementById('list');
     const query = document.getElementById('search').value.trim().toLowerCase();
 
@@ -845,13 +864,28 @@
 
     listEl.innerHTML = filtered.map(it => {
       if (it.id === editingId) return editForm(it);
-      return `
-      <div class="item ${it.qty <= 0 ? 'low' : ''}" data-id="${it.id}">
+      return itemCardHtml(it);
+    }).join('');
+
+    refreshIngredientItemSelects(addIngredientLines);
+  }
+
+  function reorderLine(it) {
+    if (!it.reorderPoint || it.reorderPoint <= 0) return '';
+    if (it.qty > it.reorderPoint) return '';
+    return `<div class="item-reorder-warning">Low stock &mdash; reorder at/below ${formatQty(it.reorderPoint)}${escapeHtml(it.unit)} (have ${formatQty(it.qty)}${escapeHtml(it.unit)})</div>`;
+  }
+
+  function itemCardHtml(it) {
+    const cls = it.qty <= 0 ? 'low' : (it.reorderPoint > 0 && it.qty <= it.reorderPoint ? 'below-reorder' : '');
+    return `
+      <div class="item ${cls}" data-id="${it.id}">
         <div class="item-info">
           <div class="item-name">${escapeHtml(it.name)}</div>
           <div class="item-qty"><b>${formatQty(it.qty)}</b> ${escapeHtml(it.unit)}</div>
           ${it.receivedDate ? `<div class="item-date">Received ${formatDate(it.receivedDate)}</div>` : ''}
           ${marginLine(it)}
+          ${reorderLine(it)}
         </div>
         <div class="item-actions">
           <button class="step-btn" data-action="dec">&minus;</button>
@@ -861,9 +895,34 @@
         </div>
       </div>
     `;
-    }).join('');
+  }
 
-    refreshIngredientItemSelects(addIngredientLines);
+  function itemsBelowReorder() {
+    return items.filter(it => it.reorderPoint > 0 && it.qty <= it.reorderPoint);
+  }
+
+  function renderShoppingList() {
+    const summaryEl = document.getElementById('shoppingSummary');
+    const listEl = document.getElementById('shoppingList');
+    const below = itemsBelowReorder().sort((a, b) => a.name.localeCompare(b.name));
+
+    summaryEl.innerHTML = `
+      <div class="summary">
+        <div class="summary-tile ${below.length > 0 ? 'loss' : ''}">
+          <div class="label">Items to reorder</div>
+          <div class="value">${below.length}</div>
+        </div>
+      </div>
+    `;
+
+    if (below.length === 0) {
+      listEl.innerHTML = '<div class="empty">Nothing below your reorder points.</div>';
+      return;
+    }
+    listEl.innerHTML = below.map(it => {
+      if (it.id === editingId) return editForm(it);
+      return itemCardHtml(it);
+    }).join('');
   }
 
   function editForm(it) {
@@ -893,6 +952,10 @@
             <input name="price" type="number" step="any" min="0" value="${it.price}">
           </div>
           <div class="field">
+            <label>Reorder at</label>
+            <input name="reorderPoint" type="number" step="any" min="0" value="${it.reorderPoint || ''}" placeholder="optional">
+          </div>
+          <div class="field">
             <label>Received date</label>
             <input name="receivedDate" type="date" value="${it.receivedDate || ''}">
           </div>
@@ -919,6 +982,7 @@
     const unit = form.unit.value;
     const cost = parseFloat(form.cost.value) || 0;
     const price = parseFloat(form.price.value) || 0;
+    const reorderPoint = parseFloat(form.reorderPoint.value) || 0;
     const receivedDate = form.receivedDate.value || todayStr();
     if (!name) return;
 
@@ -927,9 +991,10 @@
       existing.qty += qty;
       if (cost > 0) existing.cost = cost;
       if (price > 0) existing.price = price;
+      if (reorderPoint > 0) existing.reorderPoint = reorderPoint;
       existing.receivedDate = receivedDate;
     } else {
-      items.push({ id: uid(), name, qty, unit, cost, price, receivedDate });
+      items.push({ id: uid(), name, qty, unit, cost, price, reorderPoint, receivedDate });
     }
     saveItems(items);
     resetAddForm();
@@ -944,7 +1009,7 @@
 
   document.getElementById('search').addEventListener('input', renderItems);
 
-  document.getElementById('list').addEventListener('click', e => {
+  function handleItemListClick(e) {
     const saveBtn = e.target.closest('[data-action="save"]');
     const cancelBtn = e.target.closest('[data-action="cancel"]');
 
@@ -962,6 +1027,8 @@
         item.unit = formEl.querySelector('[name="unit"]').value;
         item.cost = isNaN(cost) ? 0 : Math.max(0, cost);
         item.price = isNaN(price) ? 0 : Math.max(0, price);
+        const reorderPoint = parseFloat(formEl.querySelector('[name="reorderPoint"]').value);
+        item.reorderPoint = isNaN(reorderPoint) ? 0 : Math.max(0, reorderPoint);
         item.receivedDate = formEl.querySelector('[name="receivedDate"]').value || null;
         saveItems(items);
       }
@@ -999,7 +1066,10 @@
     }
     saveItems(items);
     renderItems();
-  });
+  }
+
+  document.getElementById('list').addEventListener('click', handleItemListClick);
+  document.getElementById('shoppingList').addEventListener('click', handleItemListClick);
 
   // ================= DRINKS TAB =================
 
