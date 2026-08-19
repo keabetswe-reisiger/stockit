@@ -2279,7 +2279,7 @@
   function renderScanCameraStep() {
     scanOverlayBody.innerHTML = `
       <video id="scanVideo" playsinline muted autoplay></video>
-      <p>Point the camera at a barcode&hellip;</p>
+      <p>Fill the frame with the barcode, in good light&hellip;</p>
       <button type="button" class="qr-overlay-close" data-action="close-scan-overlay">Cancel</button>
     `;
   }
@@ -2352,10 +2352,22 @@
 
   async function startScanCamera() {
     renderScanCameraStep();
-    if (!scanReader) scanReader = new ZXingBrowser.BrowserMultiFormatReader();
+    // A dedicated 1D-only reader (not the generic multi-format one, which also
+    // searches for QR/Aztec/PDF417/Datamatrix every frame) decodes retail
+    // barcodes (EAN-13/UPC/Code128) faster per frame — real handheld phone
+    // scanning needs every attempt it can get, unlike a static test image.
+    if (!scanReader) scanReader = new ZXingBrowser.BrowserMultiFormatOneDReader();
     try {
-      scanControls = await scanReader.decodeFromVideoDevice(
-        undefined,
+      scanControls = await scanReader.decodeFromConstraints(
+        {
+          video: {
+            facingMode: 'environment',
+            // A real barcode is small in-frame; low-res default camera streams
+            // often don't have enough pixels-per-bar to resolve it reliably.
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+        },
         document.getElementById('scanVideo'),
         (result, error, controls) => {
           if (result) {
