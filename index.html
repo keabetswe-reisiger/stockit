@@ -57,8 +57,8 @@
     background: rgba(255,255,255,0.15);
     color: #fff;
     border: none;
-    padding: 8px 4px;
-    font-size: 0.8rem;
+    padding: 8px 2px;
+    font-size: 0.74rem;
     font-weight: 600;
     border-radius: 8px 8px 0 0;
     cursor: pointer;
@@ -451,6 +451,22 @@
   .sell-btn { background: var(--accent); color: #fff; flex: 1; }
   .drink-actions .icon-btn { flex: 0 0 auto; border: 1px solid var(--line); background: #fff; }
 
+  .report-range-btn {
+    flex: 1 1 auto;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .report-range-btn.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
   footer {
     text-align: center;
     color: var(--muted);
@@ -465,9 +481,10 @@
   <h1>Stockit</h1>
   <p>Ingredient &amp; stock counter</p>
   <div class="tabs">
-    <button class="tab-btn active" data-tab="ingredients">Ingredients</button>
-    <button class="tab-btn" data-tab="shopping">Shopping</button>
+    <button class="tab-btn active" data-tab="ingredients">Items</button>
+    <button class="tab-btn" data-tab="shopping">Reorder</button>
     <button class="tab-btn" data-tab="drinks">Drinks</button>
+    <button class="tab-btn" data-tab="reports">Reports</button>
     <button class="tab-btn" data-tab="backup">Backup</button>
   </div>
 </header>
@@ -552,6 +569,19 @@
     </div>
 
     <div id="drinksList"></div>
+  </div>
+
+  <div id="tab-reports" class="tab-panel">
+    <div class="add-card" style="padding:10px;">
+      <div id="reportRangeButtons" style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button type="button" class="report-range-btn" data-range="today">Today</button>
+        <button type="button" class="report-range-btn" data-range="week">This week</button>
+        <button type="button" class="report-range-btn active" data-range="7">Last 7 days</button>
+        <button type="button" class="report-range-btn" data-range="30">Last 30 days</button>
+      </div>
+    </div>
+    <div id="reportsSummary"></div>
+    <div id="reportsByDay"></div>
   </div>
 
   <div id="tab-backup" class="tab-panel">
@@ -725,12 +755,35 @@
     return `${sign}R${Math.abs(n).toFixed(2)}`;
   }
 
-  function todayStr() {
-    const d = new Date();
+  function dateKeyFromDate(d) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+  }
+
+  function todayStr() {
+    return dateKeyFromDate(new Date());
+  }
+
+  function dateKeyFromTs(ts) {
+    return dateKeyFromDate(new Date(ts));
+  }
+
+  function addDaysToDateKey(dateKey, days) {
+    const [y, m, d] = dateKey.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + days);
+    return dateKeyFromDate(dt);
+  }
+
+  function startOfWeekKey(dateKey) {
+    const [y, m, d] = dateKey.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    const dow = dt.getDay(); // 0 = Sunday
+    const diffToMonday = dow === 0 ? 6 : dow - 1;
+    dt.setDate(dt.getDate() - diffToMonday);
+    return dateKeyFromDate(dt);
   }
 
   function formatDate(dateStr) {
@@ -1566,6 +1619,96 @@
     }
   }
 
+  // ================= REPORTS =================
+
+  let selectedReportRange = '7';
+
+  function buildSalesReport(rangeKey) {
+    const today = todayStr();
+    let sinceKey;
+    if (rangeKey === 'today') sinceKey = today;
+    else if (rangeKey === 'week') sinceKey = startOfWeekKey(today);
+    else if (rangeKey === '30') sinceKey = addDaysToDateKey(today, -29);
+    else sinceKey = addDaysToDateKey(today, -6);
+
+    const relevant = sales.filter(s => !s.undone && dateKeyFromTs(s.ts) >= sinceKey);
+
+    const byDayMap = {};
+    relevant.forEach(s => {
+      const key = dateKeyFromTs(s.ts);
+      if (!byDayMap[key]) byDayMap[key] = { date: key, cupsSold: 0, revenue: 0, cost: 0, profit: 0, byDrink: {} };
+      const bucket = byDayMap[key];
+      bucket.cupsSold += 1;
+      bucket.revenue += s.sellPrice;
+      bucket.cost += s.cost;
+      bucket.profit += (s.sellPrice - s.cost);
+      const drinkKey = s.sizeName ? `${s.drinkName} (${s.sizeName})` : s.drinkName;
+      bucket.byDrink[drinkKey] = (bucket.byDrink[drinkKey] || 0) + 1;
+    });
+
+    const byDay = Object.values(byDayMap).sort((a, b) => b.date.localeCompare(a.date));
+    const totals = byDay.reduce((acc, d) => ({
+      cupsSold: acc.cupsSold + d.cupsSold,
+      revenue: acc.revenue + d.revenue,
+      cost: acc.cost + d.cost,
+      profit: acc.profit + d.profit,
+    }), { cupsSold: 0, revenue: 0, cost: 0, profit: 0 });
+
+    return { totals, byDay };
+  }
+
+  function renderReports() {
+    const { totals, byDay } = buildSalesReport(selectedReportRange);
+
+    const summaryEl = document.getElementById('reportsSummary');
+    const belowCount = itemsBelowReorder().length;
+    summaryEl.innerHTML = `
+      <div class="summary">
+        <div class="summary-tile">
+          <div class="label">Cups sold</div>
+          <div class="value">${totals.cupsSold}</div>
+        </div>
+        <div class="summary-tile">
+          <div class="label">Revenue</div>
+          <div class="value">${money(totals.revenue)}</div>
+        </div>
+        <div class="summary-tile ${totals.profit >= 0 ? 'profit' : 'loss'}">
+          <div class="label">${totals.profit >= 0 ? 'Profit' : 'Loss'}</div>
+          <div class="value">${money(totals.profit)}</div>
+        </div>
+        <div class="summary-tile ${belowCount > 0 ? 'loss' : ''}">
+          <div class="label">Items to reorder</div>
+          <div class="value">${belowCount}</div>
+        </div>
+      </div>
+    `;
+
+    const byDayEl = document.getElementById('reportsByDay');
+    if (byDay.length === 0) {
+      byDayEl.innerHTML = '<div class="empty">No sales yet — log a sale from the Drinks tab to see reports here.</div>';
+      return;
+    }
+    byDayEl.innerHTML = byDay.map(d => `
+      <div class="activity-box">
+        <h2>${formatDate(d.date)}</h2>
+        <div class="activity-entry" style="border-top:none;">
+          ${d.cupsSold} sold &middot; ${money(d.revenue)} revenue &middot;
+          <span class="item-margin ${d.profit >= 0 ? 'profit' : 'loss'}" style="display:inline;">${d.profit >= 0 ? 'Profit' : 'Loss'} ${money(d.profit)}</span>
+        </div>
+        <div class="drink-recipe">${Object.entries(d.byDrink).map(([name, count]) => `${count}&times; ${escapeHtml(name)}`).join(' &middot; ')}</div>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('reportRangeButtons').addEventListener('click', e => {
+    const btn = e.target.closest('.report-range-btn');
+    if (!btn) return;
+    selectedReportRange = btn.dataset.range;
+    document.querySelectorAll('.report-range-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderReports();
+  });
+
   // ================= UNDO =================
 
   document.getElementById('activityLog').addEventListener('click', e => {
@@ -1613,6 +1756,7 @@
   function renderAll() {
     renderItems();
     renderDrinks();
+    renderReports();
   }
 
   document.querySelector('input[name="receivedDate"]').value = todayStr();
