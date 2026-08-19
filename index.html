@@ -282,7 +282,17 @@
     display: flex;
     gap: 8px;
   }
-  .form-actions button[type="submit"] { flex: 2; }
+  .form-actions button[type="submit"] {
+    flex: 2;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 11px;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .form-actions button[type="submit"]:active { background: var(--accent-dark); }
   .form-actions .clear-btn {
     flex: 1;
     background: var(--bg);
@@ -584,7 +594,7 @@
   <div class="tabs">
     <button class="tab-btn active" data-tab="ingredients">Items</button>
     <button class="tab-btn" data-tab="shopping">Reorder</button>
-    <button class="tab-btn" data-tab="drinks">Drinks</button>
+    <button class="tab-btn" data-tab="drinks">Options</button>
     <button class="tab-btn" data-tab="reports">Reports</button>
     <button class="tab-btn" data-tab="backup">Backup</button>
   </div>
@@ -663,6 +673,23 @@
     </div>
 
     <div id="drinksList"></div>
+
+    <div class="add-card">
+      <h2>Add add-on</h2>
+      <form class="add-row" id="addAddonForm">
+        <input name="name" type="text" placeholder="Add-on name (e.g. Simba Chips)" required>
+        <input name="qty" type="number" step="any" placeholder="Qty in stock" value="0" required>
+        <input name="cost" type="number" step="any" min="0" placeholder="Cost price R (optional)">
+        <input name="sellPrice" type="number" step="any" min="0" placeholder="Sell price R" style="flex:1 1 100px;">
+        <div class="hint">Add-ons are sold as-is, no recipe needed &mdash; e.g. chips, energy bars. Typing <b>Simba</b> or <b>energy bar</b> auto-fills R20, <b>mini</b>/<b>minis</b> auto-fills R8 as the sell price.</div>
+        <div class="form-actions">
+          <button type="submit">Add add-on</button>
+          <button type="button" class="clear-btn" id="clearAddAddonForm">Clear</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="addonsList"></div>
   </div>
 
   <div id="tab-reports" class="tab-panel">
@@ -810,7 +837,30 @@
     saveSales(sales);
   }
 
-  const BACKUP_KEYS = [STORAGE_KEY, DRINKS_KEY, ACTIVITY_KEY, SALES_KEY];
+  const ADDONS_KEY = 'stockit-addons-v1';
+
+  function loadAddons() {
+    let raw = [];
+    try {
+      raw = JSON.parse(localStorage.getItem(ADDONS_KEY)) || [];
+    } catch {
+      raw = [];
+    }
+    return raw.map(a => ({
+      id: a.id,
+      name: a.name,
+      qty: Number(a.qty) || 0,
+      cost: Number(a.cost) || 0,
+      sellPrice: Number(a.sellPrice) || 0,
+      soldCount: Number(a.soldCount) || 0,
+    }));
+  }
+
+  function saveAddons(addons) {
+    localStorage.setItem(ADDONS_KEY, JSON.stringify(addons));
+  }
+
+  const BACKUP_KEYS = [STORAGE_KEY, DRINKS_KEY, ACTIVITY_KEY, SALES_KEY, ADDONS_KEY];
 
   function buildBackupPayload() {
     const data = {};
@@ -845,8 +895,10 @@
     drinks = loadDrinks();
     activity = loadActivity();
     sales = loadSales();
+    addons = loadAddons();
     editingId = null;
     editingDrinkId = null;
+    editingAddonId = null;
     renderAll();
     alert('Backup restored.');
   }
@@ -855,8 +907,10 @@
   let drinks = loadDrinks();
   let activity = loadActivity();
   let sales = loadSales();
+  let addons = loadAddons();
   let editingId = null;
   let editingDrinkId = null;
+  let editingAddonId = null;
 
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -929,15 +983,15 @@
           <h2 style="margin:0;">Recent activity</h2>
           ${canUndo ? `<button type="button" class="cancel-btn" id="undoLastSaleBtn" style="width:auto; padding:6px 10px; font-size:0.78rem;">Undo last sale</button>` : ''}
         </div>
-        ${activity.map(a => `
+        ${activity.map(a => {
+          const detail = a.deductions.length ? ` &rarr; ${a.deductions.map(d => `-${formatQty(d.qty)}${d.unit} ${escapeHtml(d.name)}`).join(', ')}` : '';
+          return `
           <div class="activity-entry">
             <span class="activity-time">${formatTime(a.ts)}</span>
-            ${a.undone ? `<s>${escapeHtml(a.drinkName)} sold &rarr; ${a.deductions.map(d => `-${formatQty(d.qty)}${d.unit} ${escapeHtml(d.name)}`).join(', ')}</s> <span style="color:var(--muted);">(undone)</span>` : `
-            ${escapeHtml(a.drinkName)} sold &rarr;
-            ${a.deductions.map(d => `-${formatQty(d.qty)}${d.unit} ${escapeHtml(d.name)}`).join(', ')}
-            `}
+            ${a.undone ? `<s>${escapeHtml(a.drinkName)} sold${detail}</s> <span style="color:var(--muted);">(undone)</span>` : `${escapeHtml(a.drinkName)} sold${detail}`}
           </div>
-        `).join('')}
+        `;
+        }).join('')}
       </div>
     `;
   }
@@ -1339,6 +1393,15 @@
     return null;
   }
 
+  function matchAddonPresetPrice(name) {
+    const n = name.trim().toLowerCase();
+    if (!n) return null;
+    if (n.includes('simba')) return 20;
+    if (n.includes('energy bar')) return 20;
+    if (n.includes('mini')) return 8;
+    return null;
+  }
+
   function sizeBlockHtml(size, originalIndex) {
     size = size || {};
     originalIndex = (originalIndex === undefined) ? -1 : originalIndex;
@@ -1692,6 +1755,192 @@
     }
   });
 
+  // ================= ADD-ONS =================
+
+  function addonCardHtml(a) {
+    if (a.id === editingAddonId) return addonEditForm(a);
+    const hasPricing = a.cost > 0 || a.sellPrice > 0;
+    const margin = a.sellPrice - a.cost;
+    const cls = margin < 0 ? 'loss' : 'profit';
+    const label = margin < 0 ? 'Loss' : 'Profit';
+    return `
+      <div class="drink" data-id="${a.id}">
+        <div class="drink-top">
+          <div>
+            <div class="drink-name">${escapeHtml(a.name)}</div>
+            <div class="drink-sold">${a.soldCount} sold &middot; ${formatQty(a.qty)} in stock</div>
+          </div>
+          <div class="item-actions">
+            <button class="icon-btn" data-action="edit-addon" title="Edit">&#9998;</button>
+            <button class="icon-btn delete" data-action="delete-addon" title="Delete">&times;</button>
+          </div>
+        </div>
+        ${hasPricing ? `<div class="drink-margin ${cls}">Cost ${money(a.cost)} &middot; Sell ${money(a.sellPrice)} &middot; ${label} ${money(margin)}</div>` : ''}
+        <div class="drink-actions">
+          <button type="button" class="sell-btn" data-action="sell-addon">Log 1 sold</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function addonEditForm(a) {
+    return `
+      <div class="edit-form" data-id="${a.id}">
+        <div class="add-row" style="margin-bottom:8px;">
+          <input name="name" type="text" value="${escapeHtml(a.name)}" style="flex:1 1 100%;">
+        </div>
+        <div class="add-row" style="margin-bottom:8px;">
+          <input name="qty" type="number" step="any" value="${a.qty}" placeholder="Qty in stock" style="flex:1 1 100px;">
+          <input name="cost" type="number" step="any" min="0" value="${a.cost || ''}" placeholder="Cost price R" style="flex:1 1 100px;">
+          <input name="sellPrice" type="number" step="any" min="0" value="${a.sellPrice || ''}" placeholder="Sell price R" style="flex:1 1 100px;">
+        </div>
+        <div class="edit-actions">
+          <button type="button" class="save-btn" data-action="save-addon">Save</button>
+          <button type="button" class="cancel-btn" data-action="cancel-addon">Cancel</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderAddons() {
+    const listEl = document.getElementById('addonsList');
+    if (addons.length === 0) {
+      listEl.innerHTML = '<div class="empty">No add-ons yet. Add one above.</div>';
+      return;
+    }
+    listEl.innerHTML = addons
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(addonCardHtml)
+      .join('');
+  }
+
+  function resetAddAddonForm() {
+    document.getElementById('addAddonForm').reset();
+    delete document.querySelector('#addAddonForm [name="sellPrice"]').dataset.manual;
+  }
+
+  const addAddonForm = document.getElementById('addAddonForm');
+  const addAddonNameInput = addAddonForm.querySelector('[name="name"]');
+  const addAddonSellPriceInput = addAddonForm.querySelector('[name="sellPrice"]');
+  addAddonSellPriceInput.addEventListener('input', () => {
+    addAddonSellPriceInput.dataset.manual = 'true';
+  });
+  addAddonNameInput.addEventListener('input', () => {
+    const preset = matchAddonPresetPrice(addAddonNameInput.value);
+    if (preset !== null && addAddonSellPriceInput.dataset.manual !== 'true') {
+      addAddonSellPriceInput.value = preset.toFixed(2);
+    }
+  });
+
+  addAddonForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const form = e.target;
+    const name = form.name.value.trim();
+    if (!name) return;
+    const qty = parseFloat(form.qty.value) || 0;
+    const cost = parseFloat(form.cost.value) || 0;
+    const sellPrice = parseFloat(form.sellPrice.value) || 0;
+
+    addons.push({ id: uid(), name, qty, cost, sellPrice, soldCount: 0 });
+    saveAddons(addons);
+
+    resetAddAddonForm();
+    renderAddons();
+  });
+
+  document.getElementById('clearAddAddonForm').addEventListener('click', () => {
+    resetAddAddonForm();
+    addAddonNameInput.focus();
+  });
+
+  document.getElementById('addonsList').addEventListener('click', e => {
+    if (e.target.closest('[data-action="cancel-addon"]')) {
+      editingAddonId = null;
+      renderAddons();
+      return;
+    }
+
+    if (e.target.closest('[data-action="save-addon"]')) {
+      const formEl = e.target.closest('.edit-form');
+      const id = formEl.dataset.id;
+      const addon = addons.find(a => a.id === id);
+      if (addon) {
+        const name = formEl.querySelector('[name="name"]').value.trim();
+        const qty = parseFloat(formEl.querySelector('[name="qty"]').value);
+        const cost = parseFloat(formEl.querySelector('[name="cost"]').value);
+        const sellPrice = parseFloat(formEl.querySelector('[name="sellPrice"]').value);
+        if (name) addon.name = name;
+        if (!isNaN(qty)) addon.qty = formatQty(Math.max(0, qty));
+        addon.cost = isNaN(cost) ? 0 : Math.max(0, cost);
+        addon.sellPrice = isNaN(sellPrice) ? 0 : Math.max(0, sellPrice);
+        saveAddons(addons);
+      }
+      editingAddonId = null;
+      renderAddons();
+      return;
+    }
+
+    const addonEl = e.target.closest('.drink');
+    if (!addonEl) return;
+    const id = addonEl.dataset.id;
+    const addon = addons.find(a => a.id === id);
+    if (!addon) return;
+
+    if (e.target.closest('[data-action="edit-addon"]')) {
+      editingAddonId = id;
+      renderAddons();
+      return;
+    }
+
+    if (e.target.closest('[data-action="delete-addon"]')) {
+      if (confirm(`Delete the "${addon.name}" add-on?`)) {
+        addons = addons.filter(a => a.id !== id);
+        saveAddons(addons);
+        renderAddons();
+      }
+      return;
+    }
+
+    if (e.target.closest('[data-action="sell-addon"]')) {
+      logAddonSale(addon);
+    }
+  });
+
+  function logAddonSale(addon) {
+    if (addon.qty <= 0) {
+      if (!confirm(`Not enough stock for "${addon.name}" (have ${formatQty(addon.qty)}). Log the sale anyway? (stock will stay at 0)`)) {
+        return;
+      }
+    }
+
+    const hadShortfall = addon.qty <= 0;
+    const qtyBefore = addon.qty;
+    addon.qty = formatQty(Math.max(0, addon.qty - 1));
+    const actualRemoved = qtyBefore - addon.qty;
+    addon.soldCount += 1;
+
+    const saleId = uid();
+    recordSale({
+      id: saleId,
+      ts: new Date().toISOString(),
+      kind: 'addon',
+      drinkId: addon.id,
+      drinkName: addon.name,
+      sizeName: null,
+      sellPrice: addon.sellPrice,
+      cost: addon.cost,
+      addonQtyRemoved: actualRemoved,
+      deductions: [],
+      hadShortfall,
+      undone: false,
+    });
+
+    logActivity(addon.name, [], saleId);
+
+    saveAddons(addons);
+    renderAll();
+  }
+
   function logSale(drink, sizeIdx) {
     const size = drink.sizes[sizeIdx];
     if (!size) return;
@@ -1734,6 +1983,7 @@
     recordSale({
       id: saleId,
       ts: new Date().toISOString(),
+      kind: 'drink',
       drinkId: drink.id,
       drinkName: drink.name,
       sizeName: multiSize ? size.name : null,
@@ -1758,24 +2008,33 @@
       alert('No sale to undo.');
       return;
     }
-    if (!confirm(`Undo the last sale (${target.drinkName})? This will restock the deducted ingredients.`)) {
+    if (!confirm(`Undo the last sale (${target.drinkName})? This will restock what was sold.`)) {
       return;
     }
 
     const missingItems = [];
-    target.deductions.forEach(d => {
-      const item = items.find(i => i.id === d.itemId);
-      if (!item) {
-        missingItems.push(d.name);
-        return;
+    if (target.kind === 'addon') {
+      const addon = addons.find(a => a.id === target.drinkId);
+      if (addon) {
+        addon.qty = formatQty(addon.qty + (target.addonQtyRemoved || 0));
+        addon.soldCount = Math.max(0, addon.soldCount - 1);
+        saveAddons(addons);
       }
-      item.qty = formatQty(item.qty + d.qtyItemUnit);
-    });
+    } else {
+      target.deductions.forEach(d => {
+        const item = items.find(i => i.id === d.itemId);
+        if (!item) {
+          missingItems.push(d.name);
+          return;
+        }
+        item.qty = formatQty(item.qty + d.qtyItemUnit);
+      });
 
-    const drink = drinks.find(dr => dr.id === target.drinkId);
-    if (drink) {
-      const size = target.sizeName ? drink.sizes.find(s => s.name === target.sizeName) : drink.sizes[0];
-      if (size) size.soldCount = Math.max(0, size.soldCount - 1);
+      const drink = drinks.find(dr => dr.id === target.drinkId);
+      if (drink) {
+        const size = target.sizeName ? drink.sizes.find(s => s.name === target.sizeName) : drink.sizes[0];
+        if (size) size.soldCount = Math.max(0, size.soldCount - 1);
+      }
     }
 
     target.undone = true;
@@ -1952,6 +2211,7 @@
   function renderAll() {
     renderItems();
     renderDrinks();
+    renderAddons();
     renderReports();
   }
 
