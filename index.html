@@ -457,6 +457,7 @@
   <div class="tabs">
     <button class="tab-btn active" data-tab="ingredients">Ingredients</button>
     <button class="tab-btn" data-tab="drinks">Drinks</button>
+    <button class="tab-btn" data-tab="backup">Backup</button>
   </div>
 </header>
 
@@ -536,6 +537,20 @@
     <div id="drinksList"></div>
   </div>
 
+  <div id="tab-backup" class="tab-panel">
+    <div class="add-card">
+      <h2>Backup your data</h2>
+      <div style="color:var(--muted); font-size:0.8rem; margin-bottom:10px; line-height:1.4;">Download a copy of all your items, drinks and activity as a file you can keep safe or move to another device.</div>
+      <button type="button" id="downloadBackupBtn" style="width:100%; background:var(--accent); color:#fff; border:none; padding:11px; border-radius:8px; font-size:1rem; cursor:pointer;">Download backup (.json)</button>
+    </div>
+
+    <div class="add-card">
+      <h2>Restore from backup</h2>
+      <div style="color:var(--muted); font-size:0.8rem; margin-bottom:10px; line-height:1.4;">Restoring will overwrite all current items, drinks and activity on this device with what's in the file.</div>
+      <input type="file" id="restoreFileInput" accept="application/json" style="width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--card); font-size:0.9rem;">
+    </div>
+  </div>
+
 </main>
 
 <footer>Stockit &mdash; data saved on this device only</footer>
@@ -612,6 +627,46 @@
     activity.unshift({ id: uid(), ts: new Date().toISOString(), drinkName, deductions });
     activity = activity.slice(0, ACTIVITY_LIMIT);
     saveActivity(activity);
+  }
+
+  const BACKUP_KEYS = [STORAGE_KEY, DRINKS_KEY, ACTIVITY_KEY];
+
+  function buildBackupPayload() {
+    const data = {};
+    BACKUP_KEYS.forEach(key => { data[key] = localStorage.getItem(key); });
+    return { version: 1, exportedAt: new Date().toISOString(), data };
+  }
+
+  function downloadBackup() {
+    const payload = buildBackupPayload();
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `stockit-backup-${todayStr()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function restoreFromBackup(payload) {
+    if (!payload || typeof payload.data !== 'object' || payload.data === null) {
+      alert("That file isn't a valid Stockit backup.");
+      return;
+    }
+    BACKUP_KEYS.forEach(key => {
+      if (typeof payload.data[key] === 'string') {
+        localStorage.setItem(key, payload.data[key]);
+      }
+    });
+    items = loadItems();
+    drinks = loadDrinks();
+    activity = loadActivity();
+    editingId = null;
+    editingDrinkId = null;
+    renderAll();
+    alert('Backup restored.');
   }
 
   let items = loadItems();
@@ -1351,6 +1406,33 @@
     saveDrinks(drinks);
     renderAll();
   }
+
+  // ================= BACKUP =================
+
+  document.getElementById('downloadBackupBtn').addEventListener('click', downloadBackup);
+
+  document.getElementById('restoreFileInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let payload;
+      try {
+        payload = JSON.parse(reader.result);
+      } catch {
+        alert("That file isn't a valid Stockit backup.");
+        e.target.value = '';
+        return;
+      }
+      if (!confirm('Restore will overwrite all current data on this device — continue?')) {
+        e.target.value = '';
+        return;
+      }
+      restoreFromBackup(payload);
+      e.target.value = '';
+    };
+    reader.readAsText(file);
+  });
 
   // ================= TABS =================
 
