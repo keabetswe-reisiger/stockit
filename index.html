@@ -641,13 +641,34 @@
     localStorage.setItem(ACTIVITY_KEY, JSON.stringify(activity));
   }
 
-  function logActivity(drinkName, deductions) {
-    activity.unshift({ id: uid(), ts: new Date().toISOString(), drinkName, deductions });
+  function logActivity(drinkName, deductions, saleId) {
+    activity.unshift({ id: uid(), ts: new Date().toISOString(), drinkName, deductions, saleId });
     activity = activity.slice(0, ACTIVITY_LIMIT);
     saveActivity(activity);
   }
 
-  const BACKUP_KEYS = [STORAGE_KEY, DRINKS_KEY, ACTIVITY_KEY];
+  const SALES_KEY = 'stockit-sales-v1';
+  const SALES_LOG_LIMIT = 5000;
+
+  function loadSales() {
+    try {
+      return JSON.parse(localStorage.getItem(SALES_KEY)) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveSales(sales) {
+    localStorage.setItem(SALES_KEY, JSON.stringify(sales));
+  }
+
+  function recordSale(entry) {
+    sales.unshift(entry);
+    sales = sales.slice(0, SALES_LOG_LIMIT);
+    saveSales(sales);
+  }
+
+  const BACKUP_KEYS = [STORAGE_KEY, DRINKS_KEY, ACTIVITY_KEY, SALES_KEY];
 
   function buildBackupPayload() {
     const data = {};
@@ -681,6 +702,7 @@
     items = loadItems();
     drinks = loadDrinks();
     activity = loadActivity();
+    sales = loadSales();
     editingId = null;
     editingDrinkId = null;
     renderAll();
@@ -690,6 +712,7 @@
   let items = loadItems();
   let drinks = loadDrinks();
   let activity = loadActivity();
+  let sales = loadSales();
   let editingId = null;
   let editingDrinkId = null;
 
@@ -734,14 +757,20 @@
       el.innerHTML = '';
       return;
     }
+    const canUndo = sales.some(s => !s.undone);
     el.innerHTML = `
       <div class="activity-box">
-        <h2>Recent activity</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <h2 style="margin:0;">Recent activity</h2>
+          ${canUndo ? `<button type="button" class="cancel-btn" id="undoLastSaleBtn" style="width:auto; padding:6px 10px; font-size:0.78rem;">Undo last sale</button>` : ''}
+        </div>
         ${activity.map(a => `
           <div class="activity-entry">
             <span class="activity-time">${formatTime(a.ts)}</span>
+            ${a.undone ? `<s>${escapeHtml(a.drinkName)} sold &rarr; ${a.deductions.map(d => `-${formatQty(d.qty)}${d.unit} ${escapeHtml(d.name)}`).join(', ')}</s> <span style="color:var(--muted);">(undone)</span>` : `
             ${escapeHtml(a.drinkName)} sold &rarr;
             ${a.deductions.map(d => `-${formatQty(d.qty)}${d.unit} ${escapeHtml(d.name)}`).join(', ')}
+            `}
           </div>
         `).join('')}
       </div>
@@ -1464,18 +1493,84 @@
       }
     }
 
+    const hadShortfall = shortfalls.length > 0;
     needed.forEach(n => {
+      const qtyBefore = n.item.qty;
       n.item.qty = formatQty(Math.max(0, n.item.qty - n.qtyInItemUnit));
+      n.actualRemoved = qtyBefore - n.item.qty;
     });
     drink.soldCount += 1;
 
+    const { cost } = recipeCost(drink);
+    const saleId = uid();
+    const ledgerDeductions = needed.map(n => ({ itemId: n.item.id, name: n.item.name, qtyItemUnit: n.actualRemoved, unit: n.item.unit }));
+    recordSale({
+      id: saleId,
+      ts: new Date().toISOString(),
+      drinkId: drink.id,
+      drinkName: drink.name,
+      sizeName: null,
+      sellPrice: drink.sellPrice,
+      cost,
+      deductions: ledgerDeductions,
+      hadShortfall,
+      undone: false,
+    });
+
     const deductions = drink.ingredients.map((ing, i) => ({ name: needed[i].item.name, qty: ing.qty, unit: ing.unit }));
-    logActivity(drink.name, deductions);
+    logActivity(drink.name, deductions, saleId);
 
     saveItems(items);
     saveDrinks(drinks);
     renderAll();
   }
+
+  function undoLastSale() {
+    const target = sales.find(s => !s.undone);
+    if (!target) {
+      alert('No sale to undo.');
+      return;
+    }
+    if (!confirm(`Undo the last sale (${target.drinkName})? This will restock the deducted ingredients.`)) {
+      return;
+    }
+
+    const missingItems = [];
+    target.deductions.forEach(d => {
+      const item = items.find(i => i.id === d.itemId);
+      if (!item) {
+        missingItems.push(d.name);
+        return;
+      }
+      item.qty = formatQty(item.qty + d.qtyItemUnit);
+    });
+
+    const drink = drinks.find(dr => dr.id === target.drinkId);
+    if (drink) drink.soldCount = Math.max(0, drink.soldCount - 1);
+
+    target.undone = true;
+    saveSales(sales);
+
+    const activityEntry = activity.find(a => a.saleId === target.id);
+    if (activityEntry) {
+      activityEntry.undone = true;
+      saveActivity(activity);
+    }
+
+    saveItems(items);
+    saveDrinks(drinks);
+    renderAll();
+
+    if (missingItems.length > 0) {
+      alert(`Restocked what was possible, but these ingredients no longer exist so couldn't be restocked: ${missingItems.join(', ')}.`);
+    }
+  }
+
+  // ================= UNDO =================
+
+  document.getElementById('activityLog').addEventListener('click', e => {
+    if (e.target.closest('#undoLastSaleBtn')) undoLastSale();
+  });
 
   // ================= BACKUP =================
 
