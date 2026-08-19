@@ -248,7 +248,7 @@
   .add-row input[name="name"] { flex: 2 1 140px; }
   .add-row input[name="qty"] { flex: 1 1 70px; }
   .add-row select { flex: 1 1 90px; }
-  .add-row input[name="cost"], .add-row input[name="price"] { flex: 1 1 100px; }
+  .add-row input[name="cost"] { flex: 1 1 100px; }
   .add-row input[name="reorderPoint"] { flex: 1 1 130px; }
   .add-row input[name="receivedDate"] { flex: 1 1 140px; color: var(--ink); }
   .add-row .hint {
@@ -617,10 +617,9 @@
           <option value="units">units</option>
         </select>
         <input name="cost" type="number" step="any" min="0" placeholder="Cost price R">
-        <input name="price" type="number" step="any" min="0" placeholder="Sell price R">
         <input name="reorderPoint" type="number" step="any" min="0" placeholder="Reorder at (optional)">
         <input name="receivedDate" type="date">
-        <div class="hint">Cost = what you pay per unit. Sell = what you charge per unit. Reorder at = get a low-stock warning once qty drops to/below this. Date = when this stock was received. Leave any of these blank if not needed.</div>
+        <div class="hint">Cost = what you pay per unit. Reorder at = get a low-stock warning once qty drops to/below this. Date = when this stock was received. Leave any of these blank if not needed.</div>
         <div class="form-actions">
           <button type="submit">Add to stock list</button>
           <button type="button" class="clear-btn" id="clearAddForm">Clear</button>
@@ -725,7 +724,6 @@
       qty: Number(it.qty) || 0,
       unit: it.unit || 'units',
       cost: Number(it.cost) || 0,
-      price: Number(it.price) || 0,
       reorderPoint: Number(it.reorderPoint) || 0,
       receivedDate: it.receivedDate || null,
     }));
@@ -991,51 +989,31 @@
       summaryEl.innerHTML = '';
       return;
     }
-    let costValue = 0, sellValue = 0, profitValue = 0, lossCount = 0, unpricedCount = 0;
+    let costValue = 0, unpricedCount = 0;
     items.forEach(it => {
-      if (it.cost === 0 && it.price === 0) {
+      if (it.cost === 0) {
         unpricedCount++;
         return;
       }
       costValue += it.qty * it.cost;
-      sellValue += it.qty * it.price;
-      profitValue += it.qty * (it.price - it.cost);
-      if (it.price - it.cost < 0) lossCount++;
     });
 
     summaryEl.innerHTML = `
       <div class="summary">
-        <div class="summary-tile">
+        <div class="summary-tile" style="grid-column: 1 / -1;">
           <div class="label">Stock cost value</div>
           <div class="value">${money(costValue)}</div>
         </div>
-        <div class="summary-tile">
-          <div class="label">Potential sell value</div>
-          <div class="value">${money(sellValue)}</div>
-        </div>
-        <div class="summary-tile ${profitValue >= 0 ? 'profit' : 'loss'}">
-          <div class="label">${profitValue >= 0 ? 'Potential profit' : 'Potential loss'}</div>
-          <div class="value">${money(profitValue)}</div>
-        </div>
-        <div class="summary-tile ${lossCount > 0 ? 'loss' : ''}">
-          <div class="label">Items priced at a loss</div>
-          <div class="value">${lossCount}</div>
-        </div>
-        ${unpricedCount > 0 ? `<div class="summary-note">${unpricedCount} item${unpricedCount > 1 ? 's' : ''} not priced yet — totals above exclude ${unpricedCount > 1 ? 'them' : 'it'}.</div>` : ''}
+        ${unpricedCount > 0 ? `<div class="summary-note">${unpricedCount} item${unpricedCount > 1 ? 's' : ''} not costed yet — total above excludes ${unpricedCount > 1 ? 'them' : 'it'}.</div>` : ''}
       </div>
     `;
   }
 
-  function marginLine(it) {
-    if (it.cost === 0 && it.price === 0) {
-      return `<div class="item-margin unpriced">No price set — tap edit to add cost/sell price</div>`;
+  function costLine(it) {
+    if (it.cost === 0) {
+      return `<div class="item-margin unpriced">No cost set — tap edit to add a cost price</div>`;
     }
-    const margin = it.price - it.cost;
-    const pct = it.price > 0 ? (margin / it.price * 100) : null;
-    const cls = margin < 0 ? 'loss' : 'profit';
-    const pctText = pct !== null ? ` (${pct.toFixed(0)}%)` : '';
-    const label = margin < 0 ? 'Loss' : 'Profit';
-    return `<div class="item-margin ${cls}">Cost ${money(it.cost)} &middot; Sell ${money(it.price)} &middot; ${label} ${money(margin)}${pctText} /unit</div>`;
+    return `<div class="item-margin">Cost ${money(it.cost)} /unit</div>`;
   }
 
   function renderItems() {
@@ -1080,7 +1058,7 @@
           <div class="item-name">${escapeHtml(it.name)}</div>
           <div class="item-qty"><b>${formatQty(it.qty)}</b> ${escapeHtml(it.unit)}</div>
           ${it.receivedDate ? `<div class="item-date">Received ${formatDate(it.receivedDate)}</div>` : ''}
-          ${marginLine(it)}
+          ${costLine(it)}
           ${reorderLine(it)}
         </div>
         <div class="item-actions">
@@ -1144,10 +1122,6 @@
             <input name="cost" type="number" step="any" min="0" value="${it.cost}">
           </div>
           <div class="field">
-            <label>Sell price R</label>
-            <input name="price" type="number" step="any" min="0" value="${it.price}">
-          </div>
-          <div class="field">
             <label>Reorder at</label>
             <input name="reorderPoint" type="number" step="any" min="0" value="${it.reorderPoint || ''}" placeholder="optional">
           </div>
@@ -1177,7 +1151,6 @@
     const qty = parseFloat(form.qty.value) || 0;
     const unit = form.unit.value;
     const cost = parseFloat(form.cost.value) || 0;
-    const price = parseFloat(form.price.value) || 0;
     const reorderPoint = parseFloat(form.reorderPoint.value) || 0;
     const receivedDate = form.receivedDate.value || todayStr();
     if (!name) return;
@@ -1186,11 +1159,10 @@
     if (existing) {
       existing.qty += qty;
       if (cost > 0) existing.cost = cost;
-      if (price > 0) existing.price = price;
       if (reorderPoint > 0) existing.reorderPoint = reorderPoint;
       existing.receivedDate = receivedDate;
     } else {
-      items.push({ id: uid(), name, qty, unit, cost, price, reorderPoint, receivedDate });
+      items.push({ id: uid(), name, qty, unit, cost, reorderPoint, receivedDate });
     }
     saveItems(items);
     resetAddForm();
@@ -1217,12 +1189,10 @@
         const name = formEl.querySelector('[name="name"]').value.trim();
         const qty = parseFloat(formEl.querySelector('[name="qty"]').value);
         const cost = parseFloat(formEl.querySelector('[name="cost"]').value);
-        const price = parseFloat(formEl.querySelector('[name="price"]').value);
         if (name) item.name = name;
         if (!isNaN(qty)) item.qty = formatQty(Math.max(0, qty));
         item.unit = formEl.querySelector('[name="unit"]').value;
         item.cost = isNaN(cost) ? 0 : Math.max(0, cost);
-        item.price = isNaN(price) ? 0 : Math.max(0, price);
         const reorderPoint = parseFloat(formEl.querySelector('[name="reorderPoint"]').value);
         item.reorderPoint = isNaN(reorderPoint) ? 0 : Math.max(0, reorderPoint);
         item.receivedDate = formEl.querySelector('[name="receivedDate"]').value || null;
