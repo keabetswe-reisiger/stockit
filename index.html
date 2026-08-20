@@ -1364,14 +1364,27 @@
     });
   }
 
+  function updateIngredientLineForSelection(line, selectedItem) {
+    const unitSelect = line.querySelector('.ing-unit');
+    const qtyInput = line.querySelector('.ing-qty');
+    const units = selectedItem ? compatibleUnits(selectedItem.unit) : ['g', 'kg'];
+    unitSelect.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
+
+    if (selectedItem && !qtyInput.value) {
+      const preset = defaultIngredientMeasurement(selectedItem.name);
+      if (preset && units.includes(preset.unit)) {
+        qtyInput.value = preset.qty;
+        unitSelect.value = preset.unit;
+      }
+    }
+  }
+
   function wireIngredientLinesContainer(container) {
     container.addEventListener('change', e => {
       if (e.target.classList.contains('ing-item')) {
         const line = e.target.closest('.ingredient-line');
         const selectedItem = items.find(i => i.id === e.target.value);
-        const unitSelect = line.querySelector('.ing-unit');
-        const units = selectedItem ? compatibleUnits(selectedItem.unit) : ['g', 'kg'];
-        unitSelect.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
+        updateIngredientLineForSelection(line, selectedItem);
       }
     });
     container.addEventListener('click', e => {
@@ -1432,6 +1445,13 @@
     if (n.includes('simba')) return 20;
     if (n.includes('energy bar')) return 20;
     if (n.includes('mini')) return 8;
+    return null;
+  }
+
+  function defaultIngredientMeasurement(name) {
+    const n = name.trim().toLowerCase();
+    if (!n) return null;
+    if (n.includes('milk')) return { qty: 300, unit: 'ml' };
     return null;
   }
 
@@ -1704,9 +1724,7 @@
     if (e.target.classList.contains('ing-item')) {
       const line = e.target.closest('.ingredient-line');
       const selectedItem = items.find(i => i.id === e.target.value);
-      const unitSelect = line.querySelector('.ing-unit');
-      const units = selectedItem ? compatibleUnits(selectedItem.unit) : ['g', 'kg'];
-      unitSelect.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
+      updateIngredientLineForSelection(line, selectedItem);
     }
   });
 
