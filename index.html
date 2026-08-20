@@ -901,8 +901,201 @@
 
   const BACKUP_KEYS = [STORAGE_KEY, DRINKS_KEY, ACTIVITY_KEY, SALES_KEY, ADDONS_KEY];
 
+  // ================= SYNC =================
+  // Real-time multi-device sync via Firestore. There's no login system, so a
+  // random "sync code" acts as a shared secret — the Firestore rule only
+  // requires the path segment to be at least 12 characters, so security here
+  // comes entirely from the code's own randomness (like a shared room code),
+  // not from real authentication. The Firebase SDK is only fetched from its
+  // CDN when sync is actually used, so the rest of the app stays fully
+  // offline-capable if sync is never touched.
+
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDlMu68wWeKznq9kP8G9WkLE5QFwxH8BUQ",
+    authDomain: "stockit-sync.firebaseapp.com",
+    projectId: "stockit-sync",
+    storageBucket: "stockit-sync.firebasestorage.app",
+    messagingSenderId: "353739423200",
+    appId: "1:353739423200:web:6097f7da94b7affcd7ff85",
+  };
+  const SYNC_CODE_KEY = 'stockit-sync-code-v1';
+  const FIREBASE_SDK_VERSION = '12.18.0';
+
+  let syncCode = localStorage.getItem(SYNC_CODE_KEY) || null;
+  let syncDb = null;
+  let syncListenerUnsub = null;
+  let syncPushTimer = null;
+  let firebaseLoadPromise = null;
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = () => reject(new Error(`Failed to load ${src}`));
+      document.head.appendChild(s);
+    });
+  }
+
+  function ensureFirebaseLoaded() {
+    if (window.firebase && firebase.apps && firebase.apps.length) return Promise.resolve();
+    if (firebaseLoadPromise) return firebaseLoadPromise;
+    firebaseLoadPromise = loadScript(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app-compat.js`)
+      .then(() => loadScript(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore-compat.js`))
+      .then(() => { firebase.initializeApp(FIREBASE_CONFIG); });
+    return firebaseLoadPromise;
+  }
+
+  function generateSyncCode() {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O or 1/I/L mixups
+    const bytes = new Uint8Array(14);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, b => alphabet[b % alphabet.length]).join('');
+  }
+
   function scheduleSyncPush() {
-    // Placeholder — replaced later in this session once the sync feature is wired up.
+    if (!syncCode || !syncDb) return;
+    clearTimeout(syncPushTimer);
+    syncPushTimer = setTimeout(pushSyncData, 600);
+  }
+
+  function pushSyncData() {
+    if (!syncDb || !syncCode) return;
+    syncDb.collection('stockitSync').doc(syncCode).set({
+      items, drinks, addons, sales, activity,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true }).then(() => {
+      renderSyncStatus('Synced just now');
+    }).catch(err => {
+      console.error('Sync push failed', err);
+      renderSyncStatus('Sync error — will retry on the next change');
+    });
+  }
+
+  function applyRemoteSyncData(data) {
+    if (!data) return;
+    if (data.items) localStorage.setItem(STORAGE_KEY, JSON.stringify(data.items));
+    if (data.drinks) localStorage.setItem(DRINKS_KEY, JSON.stringify(data.drinks));
+    if (data.addons) localStorage.setItem(ADDONS_KEY, JSON.stringify(data.addons));
+    if (data.sales) localStorage.setItem(SALES_KEY, JSON.stringify(data.sales));
+    if (data.activity) localStorage.setItem(ACTIVITY_KEY, JSON.stringify(data.activity));
+    items = loadItems();
+    drinks = loadDrinks();
+    addons = loadAddons();
+    sales = loadSales();
+    activity = loadActivity();
+    editingId = null;
+    editingDrinkId = null;
+    editingAddonId = null;
+    renderAll();
+  }
+
+  function attachSyncListener() {
+    if (syncListenerUnsub) { syncListenerUnsub(); syncListenerUnsub = null; }
+    syncListenerUnsub = syncDb.collection('stockitSync').doc(syncCode).onSnapshot(snap => {
+      if (snap.exists) applyRemoteSyncData(snap.data());
+      renderSyncStatus('Synced');
+    }, err => {
+      console.error('Sync listener error', err);
+      renderSyncStatus('Sync connection error — will keep retrying');
+    });
+  }
+
+  async function startNewSync() {
+    try {
+      await ensureFirebaseLoaded();
+      syncDb = firebase.firestore();
+      const code = generateSyncCode();
+      await syncDb.collection('stockitSync').doc(code).set({
+        items, drinks, addons, sales, activity,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      syncCode = code;
+      localStorage.setItem(SYNC_CODE_KEY, code);
+      attachSyncListener();
+      renderSyncStatus('Synced');
+    } catch (err) {
+      console.error('Failed to start sync', err);
+      alert("Couldn't start syncing — check your internet connection and try again.");
+    }
+  }
+
+  async function joinSync(rawCode) {
+    const code = rawCode.trim().toUpperCase();
+    if (!code) return;
+    try {
+      await ensureFirebaseLoaded();
+      syncDb = firebase.firestore();
+      const snap = await syncDb.collection('stockitSync').doc(code).get();
+      if (!snap.exists) {
+        alert("No synced data found for that code. Check it and try again.");
+        return;
+      }
+      if (!confirm('Joining will replace all data on this device with the synced data. Continue?')) {
+        return;
+      }
+      applyRemoteSyncData(snap.data());
+      syncCode = code;
+      localStorage.setItem(SYNC_CODE_KEY, code);
+      attachSyncListener();
+      renderSyncStatus('Synced');
+    } catch (err) {
+      console.error('Failed to join sync', err);
+      alert("Couldn't join syncing — check the code and your internet connection.");
+    }
+  }
+
+  function stopSync() {
+    if (!confirm('Stop syncing on this device? Your data stays on this device but will no longer update automatically.')) return;
+    if (syncListenerUnsub) { syncListenerUnsub(); syncListenerUnsub = null; }
+    syncCode = null;
+    syncDb = null;
+    localStorage.removeItem(SYNC_CODE_KEY);
+    renderSyncStatus();
+  }
+
+  function renderSyncStatus(statusText) {
+    const el = document.getElementById('syncStatusBody');
+    if (!el) return;
+    if (syncCode) {
+      el.innerHTML = `
+        <div style="color:var(--muted); font-size:0.8rem; margin-bottom:6px; line-height:1.4;">This device is synced. Enter this same code on another device to link it too:</div>
+        <div style="font-family:monospace; font-size:1.3rem; letter-spacing:2px; text-align:center; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:10px; word-break:break-all;">${escapeHtml(syncCode)}</div>
+        <div style="color:var(--muted); font-size:0.78rem; margin-bottom:12px;">${escapeHtml(statusText || 'Synced')}</div>
+        <button type="button" id="stopSyncBtn" style="width:100%; background:var(--bg); color:var(--muted); border:1px solid var(--line); border-radius:8px; padding:11px; font-size:1rem; cursor:pointer;">Stop syncing on this device</button>
+      `;
+    } else {
+      el.innerHTML = `
+        <div style="color:var(--muted); font-size:0.8rem; margin-bottom:10px; line-height:1.4;">Link this device with another so changes show up on both automatically.</div>
+        <button type="button" id="startSyncBtn" style="width:100%; background:var(--accent); color:#fff; border:none; padding:11px; border-radius:8px; font-size:1rem; cursor:pointer; margin-bottom:12px;">Start syncing (new code)</button>
+        <div class="add-row" style="margin-bottom:0;">
+          <input id="joinSyncCodeInput" type="text" placeholder="Or enter a code from another device" style="flex:1 1 100%;">
+          <button type="button" id="joinSyncBtn" style="flex:1 1 100%; background:var(--bg); color:var(--muted); border:1px solid var(--line); border-radius:8px; padding:11px; font-size:1rem; cursor:pointer;">Join with this code</button>
+        </div>
+      `;
+    }
+  }
+
+  document.getElementById('syncStatusBody').addEventListener('click', e => {
+    if (e.target.id === 'startSyncBtn') { startNewSync(); return; }
+    if (e.target.id === 'stopSyncBtn') { stopSync(); return; }
+    if (e.target.id === 'joinSyncBtn') {
+      joinSync(document.getElementById('joinSyncCodeInput').value);
+      return;
+    }
+  });
+
+  function initSyncIfNeeded() {
+    renderSyncStatus();
+    if (syncCode) {
+      ensureFirebaseLoaded().then(() => {
+        syncDb = firebase.firestore();
+        attachSyncListener();
+      }).catch(err => {
+        console.error('Failed to reconnect sync', err);
+        renderSyncStatus("Couldn't reconnect — check your internet connection.");
+      });
+    }
   }
 
   function buildBackupPayload() {
@@ -943,6 +1136,7 @@
     editingDrinkId = null;
     editingAddonId = null;
     renderAll();
+    scheduleSyncPush();
     alert('Backup restored.');
   }
 
@@ -2546,6 +2740,7 @@
 
   document.querySelector('input[name="receivedDate"]').value = todayStr();
   renderAll();
+  initSyncIfNeeded();
 </script>
 
 </body>
