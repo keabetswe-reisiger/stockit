@@ -259,6 +259,7 @@
   .add-row input[name="cost"] { flex: 1 1 100px; }
   .add-row input[name="reorderPoint"] { flex: 1 1 130px; }
   .add-row input[name="barcode"] { flex: 1 1 140px; }
+  .add-row input[name="mlPerUnit"] { flex: 1 1 150px; }
   .add-row input[name="receivedDate"] { flex: 1 1 140px; color: var(--ink); }
   .add-row .hint {
     flex: 1 1 100%;
@@ -640,7 +641,8 @@
         <input name="reorderPoint" type="number" step="any" min="0" placeholder="Reorder at (optional)">
         <input name="receivedDate" type="date">
         <input name="barcode" type="text" placeholder="Barcode (optional)">
-        <div class="hint">Cost = what you pay per unit. Reorder at = get a low-stock warning once qty drops to/below this. Date = when this stock was received. Barcode = optional, lets scanning find this item later. Leave any of these blank if not needed.</div>
+        <input name="mlPerUnit" type="number" step="any" min="0" placeholder="Pack size in ml (optional)">
+        <div class="hint">Cost = what you pay per unit. Reorder at = get a low-stock warning once qty drops to/below this. Date = when this stock was received. Barcode = optional, lets scanning find this item later. Pack size in ml = for items stocked in packs/boxes (e.g. a 6-litre pack of milk = 6000), lets recipes use ml/l for this item without changing its cost or stock unit. Leave any of these blank if not needed.</div>
         <div class="form-actions">
           <button type="submit">Add to stock list</button>
           <button type="button" class="clear-btn" id="clearAddForm">Clear</button>
@@ -728,6 +730,11 @@
       <div style="color:var(--muted); font-size:0.8rem; margin-bottom:10px; line-height:1.4;">Restoring will overwrite all current items, drinks and activity on this device with what's in the file.</div>
       <input type="file" id="restoreFileInput" accept="application/json" style="width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--card); font-size:0.9rem;">
     </div>
+
+    <div class="add-card">
+      <h2>Sync across devices</h2>
+      <div id="syncStatusBody"></div>
+    </div>
   </div>
 
 </main>
@@ -779,11 +786,13 @@
       reorderPoint: Number(it.reorderPoint) || 0,
       receivedDate: it.receivedDate || null,
       barcode: it.barcode || null,
+      mlPerUnit: Number(it.mlPerUnit) || 0,
     }));
   }
 
   function saveItems(items) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    scheduleSyncPush();
   }
 
   function normalizeSize(s) {
@@ -819,6 +828,7 @@
 
   function saveDrinks(drinks) {
     localStorage.setItem(DRINKS_KEY, JSON.stringify(drinks));
+    scheduleSyncPush();
   }
 
   const ACTIVITY_KEY = 'stockit-activity-v1';
@@ -834,6 +844,7 @@
 
   function saveActivity(activity) {
     localStorage.setItem(ACTIVITY_KEY, JSON.stringify(activity));
+    scheduleSyncPush();
   }
 
   function logActivity(drinkName, deductions, saleId) {
@@ -855,6 +866,7 @@
 
   function saveSales(sales) {
     localStorage.setItem(SALES_KEY, JSON.stringify(sales));
+    scheduleSyncPush();
   }
 
   function recordSale(entry) {
@@ -884,9 +896,14 @@
 
   function saveAddons(addons) {
     localStorage.setItem(ADDONS_KEY, JSON.stringify(addons));
+    scheduleSyncPush();
   }
 
   const BACKUP_KEYS = [STORAGE_KEY, DRINKS_KEY, ACTIVITY_KEY, SALES_KEY, ADDONS_KEY];
+
+  function scheduleSyncPush() {
+    // Placeholder — replaced later in this session once the sync feature is wired up.
+  }
 
   function buildBackupPayload() {
     const data = {};
@@ -1039,24 +1056,36 @@
     return 'count';
   }
 
-  function compatibleUnits(u) {
+  function compatibleUnits(u, mlPerUnit) {
     const fam = unitFamily(u);
     if (fam === 'weight') return WEIGHT_UNITS;
     if (fam === 'volume') return VOLUME_UNITS;
+    // A count-style unit (e.g. "boxes") with a known pack size in ml (e.g. a
+    // 6-litre pack) can also be used with recipes written in ml/l — the pack
+    // itself is still tracked/costed as whole packs, never converted or split.
+    if (mlPerUnit > 0) return [u, 'ml', 'l'];
     return [u];
   }
 
-  function convertQty(qty, fromUnit, toUnit) {
+  function convertQty(qty, fromUnit, toUnit, mlPerUnit) {
     if (fromUnit === toUnit) return qty;
     const fam = unitFamily(fromUnit);
-    if (fam !== unitFamily(toUnit)) return null;
-    if (fam === 'weight') {
-      const grams = fromUnit === 'kg' ? qty * 1000 : qty;
-      return toUnit === 'kg' ? grams / 1000 : grams;
+    if (fam === unitFamily(toUnit)) {
+      if (fam === 'weight') {
+        const grams = fromUnit === 'kg' ? qty * 1000 : qty;
+        return toUnit === 'kg' ? grams / 1000 : grams;
+      }
+      if (fam === 'volume') {
+        const ml = fromUnit === 'l' ? qty * 1000 : qty;
+        return toUnit === 'l' ? ml / 1000 : ml;
+      }
+      return null;
     }
-    if (fam === 'volume') {
+    // Cross-family: a recipe in ml/l against an item stocked in packs, using
+    // that item's own "1 pack = mlPerUnit ml" ratio (e.g. 1 pack = 6000ml).
+    if (mlPerUnit > 0 && fam === 'volume' && unitFamily(toUnit) === 'count') {
       const ml = fromUnit === 'l' ? qty * 1000 : qty;
-      return toUnit === 'l' ? ml / 1000 : ml;
+      return ml / mlPerUnit;
     }
     return null;
   }
@@ -1213,6 +1242,10 @@
             <label>Barcode</label>
             <input name="barcode" type="text" value="${escapeHtml(it.barcode || '')}" placeholder="optional">
           </div>
+          <div class="field">
+            <label>Pack size (ml)</label>
+            <input name="mlPerUnit" type="number" step="any" min="0" value="${it.mlPerUnit || ''}" placeholder="optional">
+          </div>
         </div>
         <div class="edit-actions">
           <button type="button" class="save-btn" data-action="save">Save</button>
@@ -1238,6 +1271,7 @@
     const reorderPoint = parseFloat(form.reorderPoint.value) || 0;
     const receivedDate = form.receivedDate.value || todayStr();
     const barcode = form.barcode.value.trim() || null;
+    const mlPerUnit = parseFloat(form.mlPerUnit.value) || 0;
     if (!name) return;
 
     const existing = items.find(it => it.name.toLowerCase() === name.toLowerCase());
@@ -1247,8 +1281,9 @@
       if (reorderPoint > 0) existing.reorderPoint = reorderPoint;
       existing.receivedDate = receivedDate;
       if (barcode) existing.barcode = barcode;
+      if (mlPerUnit > 0) existing.mlPerUnit = mlPerUnit;
     } else {
-      items.push({ id: uid(), name, qty, unit, cost, reorderPoint, receivedDate, barcode });
+      items.push({ id: uid(), name, qty, unit, cost, reorderPoint, receivedDate, barcode, mlPerUnit });
     }
     saveItems(items);
     resetAddForm();
@@ -1283,6 +1318,8 @@
         item.reorderPoint = isNaN(reorderPoint) ? 0 : Math.max(0, reorderPoint);
         item.receivedDate = formEl.querySelector('[name="receivedDate"]').value || null;
         item.barcode = formEl.querySelector('[name="barcode"]').value.trim() || null;
+        const mlPerUnit = parseFloat(formEl.querySelector('[name="mlPerUnit"]').value);
+        item.mlPerUnit = isNaN(mlPerUnit) ? 0 : Math.max(0, mlPerUnit);
         saveItems(items);
       }
       editingId = null;
@@ -1328,7 +1365,7 @@
 
   function ingredientLineHtml(selectedItemId, qty, unit) {
     const selectedItem = items.find(i => i.id === selectedItemId);
-    const units = selectedItem ? compatibleUnits(selectedItem.unit) : ['g', 'kg'];
+    const units = selectedItem ? compatibleUnits(selectedItem.unit, selectedItem.mlPerUnit) : ['g', 'kg'];
     const unitToUse = unit && units.includes(unit) ? unit : units[0];
     return `
       <div class="ingredient-line">
@@ -1359,7 +1396,7 @@
       const unitSelect = line.querySelector('.ing-unit');
       const currentUnit = unitSelect.value;
       const selectedItem = items.find(i => i.id === sel.value);
-      const units = selectedItem ? compatibleUnits(selectedItem.unit) : ['g', 'kg'];
+      const units = selectedItem ? compatibleUnits(selectedItem.unit, selectedItem.mlPerUnit) : ['g', 'kg'];
       unitSelect.innerHTML = units.map(u => `<option value="${u}" ${u === currentUnit ? 'selected' : ''}>${u}</option>`).join('');
     });
   }
@@ -1367,7 +1404,7 @@
   function updateIngredientLineForSelection(line, selectedItem) {
     const unitSelect = line.querySelector('.ing-unit');
     const qtyInput = line.querySelector('.ing-qty');
-    const units = selectedItem ? compatibleUnits(selectedItem.unit) : ['g', 'kg'];
+    const units = selectedItem ? compatibleUnits(selectedItem.unit, selectedItem.mlPerUnit) : ['g', 'kg'];
     unitSelect.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
 
     if (selectedItem && !qtyInput.value) {
@@ -1414,7 +1451,7 @@
         issues.push('an ingredient no longer in stock');
         return;
       }
-      const converted = convertQty(ing.qty, ing.unit, item.unit);
+      const converted = convertQty(ing.qty, ing.unit, item.unit, item.mlPerUnit);
       if (converted === null) {
         issues.push(`${item.name}'s unit changed and no longer matches this recipe`);
         return;
@@ -2003,7 +2040,7 @@
         alert(`Can't log a sale — this recipe has an ingredient that no longer exists in stock. Edit the recipe first.`);
         return;
       }
-      const qtyInItemUnit = convertQty(ing.qty, ing.unit, item.unit);
+      const qtyInItemUnit = convertQty(ing.qty, ing.unit, item.unit, item.mlPerUnit);
       if (qtyInItemUnit === null) {
         alert(`Can't log a sale — "${item.name}"'s unit changed and no longer matches this recipe. Edit the recipe first.`);
         return;
