@@ -919,9 +919,11 @@
     appId: "1:353739423200:web:6097f7da94b7affcd7ff85",
   };
   const SYNC_CODE_KEY = 'stockit-sync-code-v1';
+  const LAST_EDIT_KEY = 'stockit-last-edit-ts';
   const FIREBASE_SDK_VERSION = '12.18.0';
 
   let syncCode = localStorage.getItem(SYNC_CODE_KEY) || null;
+  let lastLocalEditAt = Number(localStorage.getItem(LAST_EDIT_KEY)) || 0;
   let syncDb = null;
   let syncListenerUnsub = null;
   let syncPushTimer = null;
@@ -946,6 +948,24 @@
     return firebaseLoadPromise;
   }
 
+  let syncDbReadyPromise = null;
+  function ensureSyncDb() {
+    if (!syncDbReadyPromise) {
+      const db = firebase.firestore();
+      // Lets pending writes survive the app being closed or killed while
+      // offline, so an offline stock change isn't lost before it syncs.
+      syncDbReadyPromise = db.enablePersistence({ synchronizeTabs: true })
+        .catch(err => console.warn('Firestore offline persistence unavailable:', err.code || err))
+        .then(() => db);
+    }
+    return syncDbReadyPromise;
+  }
+
+  function markLocalEdit() {
+    lastLocalEditAt = Date.now();
+    localStorage.setItem(LAST_EDIT_KEY, String(lastLocalEditAt));
+  }
+
   function generateSyncCode() {
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O or 1/I/L mixups
     const bytes = new Uint8Array(14);
@@ -954,6 +974,7 @@
   }
 
   function scheduleSyncPush() {
+    markLocalEdit();
     if (!syncCode || !syncDb) return;
     clearTimeout(syncPushTimer);
     syncPushTimer = setTimeout(pushSyncData, 600);
@@ -963,6 +984,7 @@
     if (!syncDb || !syncCode) return;
     syncDb.collection('stockitSync').doc(syncCode).set({
       items, drinks, addons, sales, activity,
+      localUpdatedAt: lastLocalEditAt,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     }, { merge: true }).then(() => {
       renderSyncStatus('Synced just now');
@@ -987,13 +1009,25 @@
     editingId = null;
     editingDrinkId = null;
     editingAddonId = null;
+    lastLocalEditAt = data.localUpdatedAt || Date.now();
+    localStorage.setItem(LAST_EDIT_KEY, String(lastLocalEditAt));
     renderAll();
   }
 
   function attachSyncListener() {
     if (syncListenerUnsub) { syncListenerUnsub(); syncListenerUnsub = null; }
     syncListenerUnsub = syncDb.collection('stockitSync').doc(syncCode).onSnapshot(snap => {
-      if (snap.exists) applyRemoteSyncData(snap.data());
+      if (!snap.exists) { renderSyncStatus('Synced'); return; }
+      const data = snap.data();
+      if ((data.localUpdatedAt || 0) < lastLocalEditAt) {
+        // The cloud copy hasn't caught up with edits made on this device
+        // yet (e.g. they happened while offline) — push ours instead of
+        // overwriting them with the older cloud data.
+        renderSyncStatus('Sync catching up — pushing your latest changes');
+        pushSyncData();
+        return;
+      }
+      applyRemoteSyncData(data);
       renderSyncStatus('Synced');
     }, err => {
       console.error('Sync listener error', err);
@@ -1004,10 +1038,11 @@
   async function startNewSync() {
     try {
       await ensureFirebaseLoaded();
-      syncDb = firebase.firestore();
+      syncDb = await ensureSyncDb();
       const code = generateSyncCode();
       await syncDb.collection('stockitSync').doc(code).set({
         items, drinks, addons, sales, activity,
+        localUpdatedAt: lastLocalEditAt,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
       syncCode = code;
@@ -1025,7 +1060,7 @@
     if (!code) return;
     try {
       await ensureFirebaseLoaded();
-      syncDb = firebase.firestore();
+      syncDb = await ensureSyncDb();
       const snap = await syncDb.collection('stockitSync').doc(code).get();
       if (!snap.exists) {
         alert("No synced data found for that code. Check it and try again.");
@@ -1088,8 +1123,8 @@
   function initSyncIfNeeded() {
     renderSyncStatus();
     if (syncCode) {
-      ensureFirebaseLoaded().then(() => {
-        syncDb = firebase.firestore();
+      ensureFirebaseLoaded().then(() => ensureSyncDb()).then(db => {
+        syncDb = db;
         attachSyncListener();
       }).catch(err => {
         console.error('Failed to reconnect sync', err);
