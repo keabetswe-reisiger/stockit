@@ -654,6 +654,10 @@
   </div>
 
   <div id="tab-shopping" class="tab-panel">
+    <div id="notifyBanner" class="add-card" style="display:none;">
+      <div style="color:var(--muted); font-size:0.85rem; margin-bottom:10px;">Get an alert on this device when an item drops to/below its reorder point.</div>
+      <button type="button" id="enableNotifyBtn" style="width:100%; background:var(--accent); color:#fff; border:none; padding:11px; border-radius:8px; font-size:1rem; cursor:pointer;">Enable low-stock alerts</button>
+    </div>
     <div id="shoppingSummary"></div>
     <div id="shoppingList"></div>
   </div>
@@ -877,6 +881,8 @@
   }
 
   const ADDONS_KEY = 'stockit-addons-v1';
+  const NOTIFY_ENABLED_KEY = 'stockit-notify-enabled-v1';
+  const LAST_NOTIFIED_KEY = 'stockit-last-notified-v1';
 
   function loadAddons() {
     let raw = [];
@@ -1418,6 +1424,7 @@
     const summaryEl = document.getElementById('shoppingSummary');
     const listEl = document.getElementById('shoppingList');
     const below = itemsBelowReorder().sort((a, b) => a.name.localeCompare(b.name));
+    checkLowStockAndNotify(below);
 
     summaryEl.innerHTML = `
       <div class="summary">
@@ -2491,6 +2498,59 @@
     btn.classList.add('active');
     renderReports();
   });
+
+  // ================= LOW-STOCK NOTIFICATIONS =================
+  // No backend/push server exists for this app, so these are local
+  // notifications shown via the service worker whenever the app is open or
+  // was recently active — not a true background push while fully closed.
+
+  function notifyEnabled() {
+    return localStorage.getItem(NOTIFY_ENABLED_KEY) === 'true';
+  }
+
+  function updateNotifyBanner() {
+    const banner = document.getElementById('notifyBanner');
+    const show = 'Notification' in window && Notification.permission === 'default';
+    banner.style.display = show ? 'block' : 'none';
+  }
+
+  function checkLowStockAndNotify(below) {
+    if (!('Notification' in window) || Notification.permission !== 'granted' || !notifyEnabled()) return;
+
+    const currentIds = below.map(it => it.id).sort();
+    let lastIds;
+    try {
+      lastIds = JSON.parse(localStorage.getItem(LAST_NOTIFIED_KEY)) || [];
+    } catch {
+      lastIds = [];
+    }
+    if (JSON.stringify(currentIds) === JSON.stringify(lastIds)) return;
+    localStorage.setItem(LAST_NOTIFIED_KEY, JSON.stringify(currentIds));
+    if (currentIds.length === 0) return;
+
+    const title = currentIds.length === 1 ? 'Stockit: 1 item low on stock' : `Stockit: ${currentIds.length} items low on stock`;
+    const opts = { body: below.map(it => it.name).join(', '), tag: 'stockit-low-stock' };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration()
+        .then(reg => reg ? reg.showNotification(title, opts) : new Notification(title, opts))
+        .catch(() => new Notification(title, opts));
+    } else {
+      new Notification(title, opts);
+    }
+  }
+
+  document.getElementById('enableNotifyBtn').addEventListener('click', () => {
+    Notification.requestPermission().then(permission => {
+      if (permission === 'granted') {
+        localStorage.setItem(NOTIFY_ENABLED_KEY, 'true');
+        checkLowStockAndNotify(itemsBelowReorder());
+      }
+      updateNotifyBanner();
+    });
+  });
+
+  updateNotifyBanner();
 
   // ================= UNDO =================
 
