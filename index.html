@@ -715,6 +715,7 @@
       </div>
     </div>
     <div id="reportsSummary"></div>
+    <div id="reportsLeaderboard"></div>
     <div id="reportsByDay"></div>
   </div>
 
@@ -2407,11 +2408,23 @@
       profit: acc.profit + d.profit,
     }), { cupsSold: 0, revenue: 0, cost: 0, profit: 0 });
 
-    return { totals, byDay };
+    const byItemMap = {};
+    relevant.forEach(s => {
+      const key = s.sizeName ? `${s.drinkName} (${s.sizeName})` : s.drinkName;
+      if (!byItemMap[key]) byItemMap[key] = { name: key, cupsSold: 0, revenue: 0, cost: 0, profit: 0 };
+      const bucket = byItemMap[key];
+      bucket.cupsSold += 1;
+      bucket.revenue += s.sellPrice;
+      bucket.cost += s.cost;
+      bucket.profit += (s.sellPrice - s.cost);
+    });
+    const leaderboard = Object.values(byItemMap).sort((a, b) => b.cupsSold - a.cupsSold || b.profit - a.profit);
+
+    return { totals, byDay, leaderboard };
   }
 
   function renderReports() {
-    const { totals, byDay } = buildSalesReport(selectedReportRange);
+    const { totals, byDay, leaderboard } = buildSalesReport(selectedReportRange);
 
     const summaryEl = document.getElementById('reportsSummary');
     const belowCount = itemsBelowReorder().length;
@@ -2435,6 +2448,23 @@
         </div>
       </div>
     `;
+
+    const leaderboardEl = document.getElementById('reportsLeaderboard');
+    if (leaderboard.length === 0) {
+      leaderboardEl.innerHTML = '';
+    } else {
+      leaderboardEl.innerHTML = `
+        <div class="activity-box">
+          <h2>Best sellers</h2>
+          ${leaderboard.map((d, i) => `
+            <div class="activity-entry" ${i === 0 ? 'style="border-top:none;"' : ''}>
+              #${i + 1} ${escapeHtml(d.name)} &mdash; ${d.cupsSold} sold &middot; ${money(d.revenue)} revenue &middot;
+              <span class="item-margin ${d.profit >= 0 ? 'profit' : 'loss'}" style="display:inline;">${d.profit >= 0 ? 'Profit' : 'Loss'} ${money(d.profit)}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
 
     const byDayEl = document.getElementById('reportsByDay');
     if (byDay.length === 0) {
