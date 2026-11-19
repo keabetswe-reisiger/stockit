@@ -792,10 +792,10 @@
     <input type="password" inputmode="numeric" autocomplete="off" class="pin-input" id="pinInput" maxlength="12">
     <input type="password" inputmode="numeric" autocomplete="off" class="pin-input" id="pinInput2" maxlength="12" placeholder="Repeat PIN" style="display:none;">
     <div class="pin-error" id="pinError"></div>
-    <div class="edit-actions">
+    <div class="edit-form" style="padding:0;border:none;background:none;margin:0;"><div class="edit-actions">
       <button type="button" class="save-btn" id="pinOkBtn">OK</button>
       <button type="button" class="cancel-btn" id="pinCancelBtn">Cancel</button>
-    </div>
+    </div></div>
   </div>
 </div>
 
@@ -3070,7 +3070,7 @@
   function renderPriceUpdates() {
     const el = document.getElementById('priceUpdates');
     if (priceLog.length === 0) { el.innerHTML = ''; return; }
-    const rows = priceLog.slice(0, 12).map(e => {
+    const rows = priceLog.slice(0, 6).map(e => {
       const name = e.size ? `${escapeHtml(e.name)} (${escapeHtml(e.size)})` : escapeHtml(e.name);
       const change = e.oldPrice === null ? money(e.newPrice) : `${money(e.oldPrice)} &rarr; ${money(e.newPrice)}`;
       return `
