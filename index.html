@@ -789,9 +789,11 @@
   <div class="qr-overlay-card">
     <h2 id="pinTitle" style="margin:0 0 4px;"></h2>
     <div id="pinMessage" style="color:var(--muted); font-size:0.85rem;"></div>
+    <div id="pinCodeBox" style="display:none; font-family:monospace; font-size:1.5rem; font-weight:700; letter-spacing:0.08em; background:var(--bg); border:1px dashed var(--accent); border-radius:8px; padding:14px 6px; margin:10px 0; user-select:all;"></div>
     <input type="password" inputmode="numeric" autocomplete="off" class="pin-input" id="pinInput" maxlength="12">
     <input type="password" inputmode="numeric" autocomplete="off" class="pin-input" id="pinInput2" maxlength="12" placeholder="Repeat PIN" style="display:none;">
     <div class="pin-error" id="pinError"></div>
+    <button type="button" id="pinForgotBtn" style="display:none; background:none; border:none; color:var(--accent); text-decoration:underline; font-size:0.85rem; cursor:pointer; margin-bottom:10px;">Forgot PIN?</button>
     <div class="edit-form" style="padding:0;border:none;background:none;margin:0;"><div class="edit-actions">
       <button type="button" class="save-btn" id="pinOkBtn">OK</button>
       <button type="button" class="cancel-btn" id="pinCancelBtn">Cancel</button>
@@ -3139,16 +3141,28 @@
   const pinError = document.getElementById('pinError');
   let pinHandler = null;
 
-  function openPinDialog({ title, message, confirmField, onSubmit }) {
+  function openPinDialog({ title, message, confirmField, onSubmit, textInput, placeholder, codeText, noInput, okLabel, hideCancel, showForgot }) {
     document.getElementById('pinTitle').textContent = title;
     document.getElementById('pinMessage').textContent = message || '';
     pinInput.value = '';
     pinInput2.value = '';
+    pinInput.type = textInput ? 'text' : 'password';
+    pinInput.setAttribute('inputmode', textInput ? 'text' : 'numeric');
+    pinInput.maxLength = textInput ? 20 : 12;
+    pinInput.placeholder = placeholder || '';
+    pinInput.style.letterSpacing = textInput ? '0.1em' : '';
+    pinInput.style.display = noInput ? 'none' : 'block';
     pinInput2.style.display = confirmField ? 'block' : 'none';
+    const codeBox = document.getElementById('pinCodeBox');
+    codeBox.style.display = codeText ? 'block' : 'none';
+    codeBox.textContent = codeText || '';
+    document.getElementById('pinOkBtn').textContent = okLabel || 'OK';
+    document.getElementById('pinCancelBtn').style.display = hideCancel ? 'none' : '';
+    document.getElementById('pinForgotBtn').style.display = showForgot ? 'inline-block' : 'none';
     pinError.textContent = '';
     pinHandler = onSubmit;
     pinOverlay.classList.add('active');
-    setTimeout(() => pinInput.focus(), 50);
+    if (!noInput) setTimeout(() => pinInput.focus(), 50);
   }
 
   function closePinDialog() {
@@ -3159,8 +3173,10 @@
   document.getElementById('pinCancelBtn').addEventListener('click', closePinDialog);
   document.getElementById('pinOkBtn').addEventListener('click', async () => {
     if (!pinHandler) return;
-    const err = await pinHandler(pinInput.value, pinInput2.value);
-    if (err) pinError.textContent = err; else closePinDialog();
+    const handler = pinHandler;
+    const err = await handler(pinInput.value, pinInput2.value);
+    if (err) pinError.textContent = err;
+    else if (pinHandler === handler) closePinDialog(); // a follow-up dialog replaces the handler and stays open
   });
   [pinInput, pinInput2].forEach(inp => inp.addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('pinOkBtn').click();
@@ -3172,9 +3188,53 @@
     return null;
   }
 
-  function startSetPin() {
+  // --- Recovery code: lets a manager reset a forgotten PIN without losing data ---
+  const RECOVERY_KEY = 'stockit-manager-recovery-v1';
+  const RECOVERY_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+  let failedAttempts = 0;
+  let lockedUntil = 0;
+
+  function generateRecoveryCode() {
+    const bytes = new Uint8Array(12);
+    crypto.getRandomValues(bytes);
+    const chars = Array.from(bytes, b => RECOVERY_ALPHABET[b % RECOVERY_ALPHABET.length]).join('');
+    return chars.match(/.{4}/g).join('-');
+  }
+
+  function normalizeCode(str) {
+    return String(str || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+
+  function hashRecovery(code) { return hashPin('recovery:' + normalizeCode(code)); }
+
+  // Returns a message if too many wrong attempts, else null; call noteFailure on a miss.
+  function throttleMessage() {
+    const wait = Math.ceil((lockedUntil - Date.now()) / 1000);
+    return wait > 0 ? `Too many attempts. Try again in ${wait} seconds.` : null;
+  }
+  function noteFailure() {
+    failedAttempts++;
+    if (failedAttempts >= 5) { lockedUntil = Date.now() + 60 * 1000; failedAttempts = 0; }
+  }
+
+  async function issueRecoveryCode() {
+    const code = generateRecoveryCode();
+    localStorage.setItem(RECOVERY_KEY, await hashRecovery(code));
     openPinDialog({
-      title: hasPin() ? 'Change manager PIN' : 'Set manager PIN',
+      title: 'Your recovery code',
+      message: 'Write this down and keep it somewhere safe. It is the only way to reset a forgotten PIN, and it is shown only once.',
+      codeText: code,
+      noInput: true,
+      okLabel: "I've saved it",
+      hideCancel: true,
+      onSubmit: async () => null,
+    });
+  }
+
+  function startSetPin() {
+    const firstTime = !hasPin();
+    openPinDialog({
+      title: firstTime ? 'Set manager PIN' : 'Change manager PIN',
       message: 'Choose 4 to 12 digits. Employees will not be able to open manager features without it.',
       confirmField: true,
       onSubmit: async (pin, pin2) => {
@@ -3183,20 +3243,75 @@
         localStorage.setItem(MANAGER_PIN_KEY, await hashPin(pin));
         sessionStorage.setItem(ROLE_SESSION_KEY, 'manager');
         applyRole();
+        if (firstTime || !localStorage.getItem(RECOVERY_KEY)) await issueRecoveryCode();
         return null;
       },
     });
   }
+
+  function startResetPin() {
+    openPinDialog({
+      title: 'Choose a new PIN',
+      message: 'Recovery code accepted. Choose a new PIN of 4 to 12 digits.',
+      confirmField: true,
+      hideCancel: true,
+      onSubmit: async (pin, pin2) => {
+        const bad = validNewPin(pin, pin2);
+        if (bad) return bad;
+        localStorage.setItem(MANAGER_PIN_KEY, await hashPin(pin));
+        sessionStorage.setItem(ROLE_SESSION_KEY, 'manager');
+        applyRole();
+        await issueRecoveryCode(); // the old code has been used, so issue a fresh one
+        return null;
+      },
+    });
+  }
+
+  function startRecovery() {
+    const hasCode = !!localStorage.getItem(RECOVERY_KEY);
+    openPinDialog({
+      title: 'Reset forgotten PIN',
+      message: hasCode
+        ? 'Enter the recovery code you were given when the PIN was set.'
+        : 'No recovery code was created on this device.',
+      textInput: true,
+      noInput: !hasCode,
+      placeholder: 'XXXX-XXXX-XXXX',
+      onSubmit: async (code) => {
+        if (!hasCode) return "To reset without a code, clear this site's data in your browser settings and restore from a backup.";
+        const wait = throttleMessage();
+        if (wait) return wait;
+        if ((await hashRecovery(code)) !== localStorage.getItem(RECOVERY_KEY)) {
+          noteFailure();
+          return 'That recovery code is not correct.';
+        }
+        failedAttempts = 0;
+        startResetPin();
+        return null;
+      },
+    });
+  }
+
+  document.getElementById('pinForgotBtn').addEventListener('click', startRecovery);
 
   function startLogin() {
     openPinDialog({
       title: 'Manager login',
       message: 'Enter the manager PIN.',
       confirmField: false,
+      showForgot: true,
       onSubmit: async (pin) => {
-        if ((await hashPin(pin)) !== localStorage.getItem(MANAGER_PIN_KEY)) return 'Incorrect PIN.';
+        const wait = throttleMessage();
+        if (wait) return wait;
+        if ((await hashPin(pin)) !== localStorage.getItem(MANAGER_PIN_KEY)) {
+          noteFailure();
+          return 'Incorrect PIN.';
+        }
+        failedAttempts = 0;
         sessionStorage.setItem(ROLE_SESSION_KEY, 'manager');
         applyRole();
+        // A PIN set before recovery codes existed has none yet: create one now.
+        if (!localStorage.getItem(RECOVERY_KEY)) await issueRecoveryCode();
         return null;
       },
     });
@@ -3216,13 +3331,19 @@
         ? 'A manager PIN is set on this device. Staff see the employee view until the PIN is entered. The view locks again after 10 minutes of inactivity.'
         : 'No PIN set: everyone on this device has manager access. Set a PIN to switch this device to the employee view.'}</div>
       <button type="button" id="setPinBtn" style="width:100%; background:var(--accent); color:#fff; border:none; padding:11px; border-radius:8px; font-size:1rem; cursor:pointer;">${hasPin() ? 'Change PIN' : 'Set manager PIN'}</button>
+      ${hasPin() ? '<button type="button" id="newRecoveryBtn" class="cancel-btn" style="width:100%; margin-top:8px; padding:11px;">Create a new recovery code</button>' : ''}
       ${hasPin() ? '<button type="button" id="removePinBtn" class="cancel-btn" style="width:100%; margin-top:8px; padding:11px;">Remove PIN (everyone becomes manager)</button>' : ''}
     `;
     document.getElementById('setPinBtn').addEventListener('click', startSetPin);
+    const nr = document.getElementById('newRecoveryBtn');
+    if (nr) nr.addEventListener('click', () => {
+      if (confirm('Create a new recovery code? The old code will stop working.')) issueRecoveryCode();
+    });
     const rm = document.getElementById('removePinBtn');
     if (rm) rm.addEventListener('click', () => {
       if (confirm('Remove the manager PIN? Anyone using this device will have full manager access.')) {
         localStorage.removeItem(MANAGER_PIN_KEY);
+        localStorage.removeItem(RECOVERY_KEY);
         applyRole();
       }
     });
