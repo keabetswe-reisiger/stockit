@@ -581,6 +581,23 @@
     border-color: var(--accent);
   }
 
+  body.employee .mgr-only { display: none !important; }
+  .role-bar { display:flex; align-items:center; gap:8px; margin-top:10px; }
+  .role-badge { font-size:0.72rem; font-weight:600; padding:3px 9px; border-radius:20px; background:rgba(255,255,255,0.18); color:#fff; }
+  .role-btn { font-size:0.74rem; padding:4px 10px; border-radius:20px; border:1px solid rgba(255,255,255,0.5); background:transparent; color:#fff; cursor:pointer; }
+  .pin-input { width:100%; padding:12px; font-size:1.3rem; letter-spacing:0.4em; text-align:center; border:1px solid var(--line); border-radius:8px; margin:6px 0 10px; box-sizing:border-box; }
+  .pin-error { color:var(--loss, #b3261e); font-size:0.82rem; min-height:1.1em; margin-bottom:8px; }
+  .drink-price { font-size:0.95rem; font-weight:600; margin-top:4px; display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+  .price-badge { font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:0.03em; }
+  .price-badge.promo { background:#e3f4e6; color:#1b6b2f; }
+  .price-badge.up { background:#fdeaea; color:#a12121; }
+  .price-badge.down { background:#e8f0fb; color:#1f4f99; }
+  .price-badge.new { background:#f1ecfa; color:#5b3fa0; }
+  .price-update-row { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:7px 0; border-top:1px solid var(--line); font-size:0.85rem; }
+  .price-update-row:first-of-type { border-top:none; }
+  .price-update-date { color:var(--muted); font-size:0.75rem; }
+  .end-promo-btn { background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:0.8rem; cursor:pointer; }
+
   footer {
     text-align: center;
     color: var(--muted);
@@ -596,6 +613,10 @@
     <div class="header-titles">
       <h1>Stockit</h1>
       <p>Ingredient &amp; stock counter</p>
+      <div class="role-bar">
+        <span class="role-badge" id="roleBadge">Employee view</span>
+        <button type="button" class="role-btn" id="roleBtn">Manager login</button>
+      </div>
     </div>
     <button type="button" class="qr-badge-btn" id="qrBadgeBtn" title="Tap to enlarge">
       <img class="qr-badge" id="qrBadgeImg" src="data:image/png;base64,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" alt="QR code to open Stockit on your phone" title="Scan to open Stockit on your phone">
@@ -605,15 +626,15 @@
     <button class="tab-btn active" data-tab="ingredients">Items</button>
     <button class="tab-btn" data-tab="shopping">Reorder</button>
     <button class="tab-btn" data-tab="drinks">Options</button>
-    <button class="tab-btn" data-tab="reports">Reports</button>
-    <button class="tab-btn" data-tab="backup">Backup</button>
+    <button class="tab-btn mgr-only" data-tab="reports">Reports</button>
+    <button class="tab-btn mgr-only" data-tab="backup">Backup</button>
   </div>
 </header>
 
 <main>
 
   <div id="tab-ingredients" class="tab-panel active">
-    <div id="summary"></div>
+    <div id="summary" class="mgr-only"></div>
 
     <div id="activityLog"></div>
 
@@ -622,8 +643,11 @@
     </div>
 
     <div class="add-card">
+      <button type="button" id="scanBarcodeBtn" style="width:100%; background:var(--accent); color:#fff; border:none; padding:11px; border-radius:8px; font-size:1rem; cursor:pointer;">Scan barcode to add stock</button>
+    </div>
+
+    <div class="add-card mgr-only">
       <h2>Add item</h2>
-      <button type="button" id="scanBarcodeBtn" style="width:100%; background:var(--accent); color:#fff; border:none; padding:11px; border-radius:8px; font-size:1rem; cursor:pointer; margin-bottom:12px;">Scan barcode to add stock</button>
       <form class="add-row" id="addForm">
         <input name="name" type="text" placeholder="Item name (e.g. Milk)" required>
         <input name="qty" type="number" step="any" placeholder="Qty" value="0" required>
@@ -663,9 +687,11 @@
   </div>
 
   <div id="tab-drinks" class="tab-panel">
-    <div id="drinksSummary"></div>
+    <div id="priceUpdates"></div>
 
-    <div class="ref-box">
+    <div id="drinksSummary" class="mgr-only"></div>
+
+    <div class="ref-box mgr-only">
       <b>Quick reference</b> &mdash; double shot &asymp; 18g beans &rarr; 60&ndash;70ml espresso &middot;
       single shot &asymp; 7&ndash;9g beans &rarr; 30&ndash;45ml &middot;
       drip coffee &asymp; 12&ndash;15g beans per 240ml water (&asymp;1g per 15&ndash;18ml) &middot;
@@ -674,7 +700,7 @@
       Typing <b>Cappuccino</b>, <b>Flat White</b> or <b>(Cafe) Latte</b> auto-fills R25, <b>Americano with milk</b> auto-fills R22, plain/<b>Americano without milk</b> auto-fills R20, and <b>Iced Coffee</b> (same 340ml cup, served cold) auto-fills R30 as the sell price.
     </div>
 
-    <div class="add-card">
+    <div class="add-card mgr-only">
       <h2>Add drink recipe</h2>
       <form id="addDrinkForm">
         <div class="add-row" style="margin-bottom:8px;">
@@ -691,7 +717,7 @@
 
     <div id="drinksList"></div>
 
-    <div class="add-card">
+    <div class="add-card mgr-only">
       <h2>Add add-on</h2>
       <form class="add-row" id="addAddonForm">
         <input name="name" type="text" placeholder="Add-on name (e.g. Simba Chips)" required>
@@ -725,6 +751,11 @@
 
   <div id="tab-backup" class="tab-panel">
     <div class="add-card">
+      <h2>Manager access</h2>
+      <div id="managerAccessBody"></div>
+    </div>
+
+    <div class="add-card">
       <h2>Backup your data</h2>
       <div style="color:var(--muted); font-size:0.8rem; margin-bottom:10px; line-height:1.4;">Download a copy of all your items, drinks and activity as a file you can keep safe or move to another device.</div>
       <button type="button" id="downloadBackupBtn" style="width:100%; background:var(--accent); color:#fff; border:none; padding:11px; border-radius:8px; font-size:1rem; cursor:pointer;">Download backup (.json)</button>
@@ -751,6 +782,20 @@
     <img id="qrOverlayImg" src="" alt="QR code to open Stockit on your phone">
     <p>Scan to open Stockit on your phone</p>
     <button type="button" class="qr-overlay-close" data-action="close-qr-overlay">Close</button>
+  </div>
+</div>
+
+<div class="qr-overlay" id="pinOverlay">
+  <div class="qr-overlay-card">
+    <h2 id="pinTitle" style="margin:0 0 4px;"></h2>
+    <div id="pinMessage" style="color:var(--muted); font-size:0.85rem;"></div>
+    <input type="password" inputmode="numeric" autocomplete="off" class="pin-input" id="pinInput" maxlength="12">
+    <input type="password" inputmode="numeric" autocomplete="off" class="pin-input" id="pinInput2" maxlength="12" placeholder="Repeat PIN" style="display:none;">
+    <div class="pin-error" id="pinError"></div>
+    <div class="edit-actions">
+      <button type="button" class="save-btn" id="pinOkBtn">OK</button>
+      <button type="button" class="cancel-btn" id="pinCancelBtn">Cancel</button>
+    </div>
   </div>
 </div>
 
@@ -800,11 +845,17 @@
     scheduleSyncPush();
   }
 
+  function normalizePromo(p) {
+    if (!p || !(Number(p.regularPrice) > 0)) return null;
+    return { regularPrice: Number(p.regularPrice), since: p.since || null };
+  }
+
   function normalizeSize(s) {
     return {
       name: s.name || 'Regular',
       sellPrice: Number(s.sellPrice) || 0,
       soldCount: Number(s.soldCount) || 0,
+      promo: normalizePromo(s.promo),
       ingredients: Array.isArray(s.ingredients) ? s.ingredients.map(ing => ({
         itemId: ing.itemId,
         qty: Number(ing.qty) || 0,
@@ -898,6 +949,7 @@
       cost: Number(a.cost) || 0,
       sellPrice: Number(a.sellPrice) || 0,
       soldCount: Number(a.soldCount) || 0,
+      promo: normalizePromo(a.promo),
     }));
   }
 
@@ -906,7 +958,94 @@
     scheduleSyncPush();
   }
 
-  const BACKUP_KEYS = [STORAGE_KEY, DRINKS_KEY, ACTIVITY_KEY, SALES_KEY, ADDONS_KEY];
+  // ================= PRICE CHANGE LOG =================
+  // Every sell-price change a manager makes is recorded here so employees can
+  // see what changed and why (promotion / increase / reduction).
+  const PRICE_LOG_KEY = 'stockit-price-log-v1';
+  const PRICE_LOG_LIMIT = 300;
+
+  function loadPriceLog() {
+    try {
+      return JSON.parse(localStorage.getItem(PRICE_LOG_KEY)) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  function savePriceLog(log) {
+    localStorage.setItem(PRICE_LOG_KEY, JSON.stringify(log));
+    scheduleSyncPush();
+  }
+
+  function logPriceChange(entry) {
+    priceLog.unshift(Object.assign({ id: uid(), ts: new Date().toISOString() }, entry));
+    priceLog = priceLog.slice(0, PRICE_LOG_LIMIT);
+    savePriceLog(priceLog);
+  }
+
+  // Decide what kind of change a price edit is, keep promo state consistent on
+  // `target`, and log it. `prev` is the previous version (or null if new).
+  function reconcilePrice(target, prev, meta) {
+    const newP = target.sellPrice;
+    target.promo = prev ? prev.promo : null;
+    if (!prev) {
+      if (newP > 0) logPriceChange({ ...meta, type: 'new', oldPrice: null, newPrice: newP });
+      return;
+    }
+    const oldP = prev.sellPrice;
+    if (oldP === newP) return;
+    const label = meta.size ? `${meta.name} (${meta.size})` : meta.name;
+    if (newP < oldP) {
+      const isPromo = confirm(`${label}: price goes DOWN from ${money(oldP)} to ${money(newP)}.\n\nOK = temporary promotion (staff will see "was ${money(prev.promo ? prev.promo.regularPrice : oldP)}")\nCancel = permanent price reduction`);
+      if (isPromo) {
+        target.promo = { regularPrice: prev.promo ? prev.promo.regularPrice : oldP, since: new Date().toISOString() };
+        logPriceChange({ ...meta, type: 'promo', oldPrice: oldP, newPrice: newP, regularPrice: target.promo.regularPrice });
+      } else {
+        target.promo = null;
+        logPriceChange({ ...meta, type: 'reduction', oldPrice: oldP, newPrice: newP });
+      }
+    } else {
+      let type = 'increase';
+      if (prev.promo && newP >= prev.promo.regularPrice) {
+        target.promo = null;
+        type = 'promo-end';
+      }
+      logPriceChange({ ...meta, type, oldPrice: oldP, newPrice: newP });
+    }
+  }
+
+  function priceTypeLabel(type) {
+    return { promo: 'Promotion', 'promo-end': 'Promotion ended', increase: 'Price increase', reduction: 'Price reduced', new: 'New price' }[type] || 'Price change';
+  }
+
+  function priceTypeClass(type) {
+    return { promo: 'promo', 'promo-end': 'up', increase: 'up', reduction: 'down', new: 'new' }[type] || 'new';
+  }
+
+  function shortDate(ts) {
+    const d = new Date(ts);
+    return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  }
+
+  // Price line + badge shown to everyone (employees included) on a sellable.
+  function priceLineHtml(refId, sizeName, entity) {
+    let badge = '';
+    if (entity.promo) {
+      badge = `<span class="price-badge promo">Promo &middot; was ${money(entity.promo.regularPrice)}</span>`;
+    } else {
+      const cutoff = Date.now() - 14 * 24 * 3600 * 1000;
+      const last = priceLog.find(e => e.refId === refId && (e.size || null) === (sizeName || null) && new Date(e.ts).getTime() >= cutoff);
+      if (last && (last.type === 'increase' || last.type === 'reduction' || last.type === 'promo-end')) {
+        const word = last.type === 'reduction' ? 'Lowered' : (last.type === 'promo-end' ? 'Promo ended' : 'Price up');
+        badge = `<span class="price-badge ${priceTypeClass(last.type)}">${word} ${shortDate(last.ts)} &middot; was ${money(last.oldPrice)}</span>`;
+      } else if (last && last.type === 'new') {
+        badge = `<span class="price-badge new">New ${shortDate(last.ts)}</span>`;
+      }
+    }
+    return `<div class="drink-price"><span>Price ${money(entity.sellPrice)}</span>${badge}</div>`;
+  }
+
+  const BACKUP_KEYS = [STORAGE_KEY, DRINKS_KEY, ACTIVITY_KEY, SALES_KEY, ADDONS_KEY, PRICE_LOG_KEY];
 
   // ================= SYNC =================
   // Real-time multi-device sync via Firestore. There's no login system, so a
@@ -990,7 +1129,7 @@
   function pushSyncData() {
     if (!syncDb || !syncCode) return;
     syncDb.collection('stockitSync').doc(syncCode).set({
-      items, drinks, addons, sales, activity,
+      items, drinks, addons, sales, activity, priceLog,
       localUpdatedAt: lastLocalEditAt,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     }, { merge: true }).then(() => {
@@ -1008,6 +1147,8 @@
     if (data.addons) localStorage.setItem(ADDONS_KEY, JSON.stringify(data.addons));
     if (data.sales) localStorage.setItem(SALES_KEY, JSON.stringify(data.sales));
     if (data.activity) localStorage.setItem(ACTIVITY_KEY, JSON.stringify(data.activity));
+    if (data.priceLog) localStorage.setItem(PRICE_LOG_KEY, JSON.stringify(data.priceLog));
+    priceLog = loadPriceLog();
     items = loadItems();
     drinks = loadDrinks();
     addons = loadAddons();
@@ -1174,6 +1315,7 @@
     activity = loadActivity();
     sales = loadSales();
     addons = loadAddons();
+    priceLog = loadPriceLog();
     editingId = null;
     editingDrinkId = null;
     editingAddonId = null;
@@ -1187,6 +1329,7 @@
   let activity = loadActivity();
   let sales = loadSales();
   let addons = loadAddons();
+  let priceLog = loadPriceLog();
   let editingId = null;
   let editingDrinkId = null;
   let editingAddonId = null;
@@ -1255,7 +1398,7 @@
       el.innerHTML = '';
       return;
     }
-    const canUndo = sales.some(s => !s.undone);
+    const canUndo = isManager() && sales.some(s => !s.undone);
     el.innerHTML = `
       <div class="activity-box">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -1403,14 +1546,14 @@
           <div class="item-name">${escapeHtml(it.name)}</div>
           <div class="item-qty"><b>${formatQty(it.qty)}</b> ${escapeHtml(it.unit)}</div>
           ${it.receivedDate ? `<div class="item-date">Received ${formatDate(it.receivedDate)}</div>` : ''}
-          ${costLine(it)}
+          ${isManager() ? costLine(it) : ''}
           ${reorderLine(it)}
         </div>
         <div class="item-actions">
           <button class="step-btn" data-action="dec">&minus;</button>
           <button class="step-btn" data-action="inc">+</button>
-          <button class="icon-btn" data-action="edit" title="Edit">&#9998;</button>
-          <button class="icon-btn delete" data-action="delete" title="Delete">&times;</button>
+          ${isManager() ? `<button class="icon-btn" data-action="edit" title="Edit">&#9998;</button>
+          <button class="icon-btn delete" data-action="delete" title="Delete">&times;</button>` : ''}
         </div>
       </div>
     `;
@@ -1536,6 +1679,7 @@
   document.getElementById('search').addEventListener('input', renderItems);
 
   function handleItemListClick(e) {
+    if (!isManager() && e.target.closest('[data-action="save"],[data-action="edit"],[data-action="delete"]')) return;
     const saveBtn = e.target.closest('[data-action="save"]');
     const cancelBtn = e.target.closest('[data-action="cancel"]');
 
@@ -1821,8 +1965,9 @@
       const sellPrice = parseFloat(block.querySelector('[name="sellPrice"]').value) || 0;
       const ingredients = collectIngredientLines(block.querySelector('.ingredient-lines'));
       const origIdx = parseInt(block.dataset.originalIndex, 10);
-      const soldCount = (existingSizes && origIdx >= 0 && existingSizes[origIdx]) ? existingSizes[origIdx].soldCount : 0;
-      return { name, sellPrice, soldCount, ingredients };
+      const prev = (existingSizes && origIdx >= 0 && existingSizes[origIdx]) ? existingSizes[origIdx] : null;
+      const soldCount = prev ? prev.soldCount : 0;
+      return { name, sellPrice, soldCount, ingredients, promo: prev ? prev.promo : null, _prev: prev };
     });
   }
 
@@ -1894,10 +2039,12 @@
     return `
       <div class="drink-size-row">
         <div class="drink-recipe">${namePrefix}${size.ingredients.map(recipeLine).join(' &middot; ') || 'No ingredients set'}</div>
-        <div class="drink-margin ${cls}">Cost/cup ${money(cost)} &middot; Sell ${money(size.sellPrice)} &middot; ${label} ${money(margin)}${pct !== null ? ` (${pct.toFixed(0)}%)` : ''}</div>
+        ${priceLineHtml(d.id, d.sizes.length > 1 ? size.name : null, size)}
+        ${isManager() ? `<div class="drink-margin ${cls}">Cost/cup ${money(cost)} &middot; Sell ${money(size.sellPrice)} &middot; ${label} ${money(margin)}${pct !== null ? ` (${pct.toFixed(0)}%)` : ''}</div>` : ''}
         ${issues.length ? `<div class="drink-issue">Fix needed: ${issues.join(', ')}</div>` : ''}
         <div class="drink-actions">
           <button type="button" class="sell-btn" data-action="sell" data-size-idx="${idx}">Log 1 sold${sellLabel}</button>
+          ${isManager() && size.promo ? `<button type="button" class="end-promo-btn" data-action="end-promo" data-size-idx="${idx}">End promotion</button>` : ''}
         </div>
       </div>
     `;
@@ -1916,8 +2063,8 @@
             <div class="drink-sold">${soldText}</div>
           </div>
           <div class="item-actions">
-            <button class="icon-btn" data-action="edit-drink" title="Edit">&#9998;</button>
-            <button class="icon-btn delete" data-action="delete-drink" title="Delete">&times;</button>
+            ${isManager() ? `<button class="icon-btn" data-action="edit-drink" title="Edit">&#9998;</button>
+            <button class="icon-btn delete" data-action="delete-drink" title="Delete">&times;</button>` : ''}
           </div>
         </div>
         ${d.sizes.map((size, idx) => sizeRowHtml(d, size, idx)).join('')}
@@ -1944,6 +2091,7 @@
   }
 
   function renderDrinks() {
+    renderPriceUpdates();
     renderDrinksSummary();
     const listEl = document.getElementById('drinksList');
     if (drinks.length === 0) {
@@ -1979,10 +2127,16 @@
     const form = e.target;
     const name = form.name.value.trim();
     if (!name) return;
+    if (!isManager()) return;
     const sizes = collectSizesFromForm(form);
     if (sizes.length === 0) return;
 
-    drinks.push({ id: uid(), name, sizes });
+    const newId = uid();
+    sizes.forEach(sz => {
+      delete sz._prev;
+      reconcilePrice(sz, null, { kind: 'drink', refId: newId, name, size: sizes.length > 1 ? sz.name : null });
+    });
+    drinks.push({ id: newId, name, sizes });
     saveDrinks(drinks);
 
     resetAddDrinkForm();
@@ -2003,6 +2157,25 @@
   });
 
   document.getElementById('drinksList').addEventListener('click', e => {
+    const endPromoBtn = e.target.closest('[data-action="end-promo"]');
+    if (endPromoBtn) {
+      if (!isManager()) return;
+      const dEl = endPromoBtn.closest('.drink');
+      const dr = drinks.find(x => x.id === dEl.dataset.id);
+      const sz = dr && dr.sizes[parseInt(endPromoBtn.dataset.sizeIdx, 10) || 0];
+      if (sz && sz.promo) {
+        const promoPrice = sz.sellPrice;
+        sz.sellPrice = sz.promo.regularPrice;
+        sz.promo = null;
+        logPriceChange({ kind: 'drink', refId: dr.id, name: dr.name, size: dr.sizes.length > 1 ? sz.name : null, type: 'promo-end', oldPrice: promoPrice, newPrice: sz.sellPrice });
+        saveDrinks(drinks);
+        renderAll();
+      }
+      return;
+    }
+
+    if (!isManager() && e.target.closest('[data-action="edit-drink"],[data-action="delete-drink"],[data-action="save-drink"]')) return;
+
     if (e.target.closest('.remove-line')) {
       e.target.closest('.ingredient-line').remove();
       return;
@@ -2045,7 +2218,14 @@
         const name = formEl.querySelector('[name="name"]').value.trim();
         if (name) drink.name = name;
         const sizes = collectSizesFromForm(formEl, drink.sizes);
-        if (sizes.length > 0) drink.sizes = sizes;
+        if (sizes.length > 0) {
+          sizes.forEach(sz => {
+            const prev = sz._prev;
+            delete sz._prev;
+            reconcilePrice(sz, prev, { kind: 'drink', refId: drink.id, name: drink.name, size: sizes.length > 1 ? sz.name : null });
+          });
+          drink.sizes = sizes;
+        }
         saveDrinks(drinks);
       }
       editingDrinkId = null;
@@ -2096,13 +2276,15 @@
             <div class="drink-sold">${a.soldCount} sold &middot; ${formatQty(a.qty)} in stock</div>
           </div>
           <div class="item-actions">
-            <button class="icon-btn" data-action="edit-addon" title="Edit">&#9998;</button>
-            <button class="icon-btn delete" data-action="delete-addon" title="Delete">&times;</button>
+            ${isManager() ? `<button class="icon-btn" data-action="edit-addon" title="Edit">&#9998;</button>
+            <button class="icon-btn delete" data-action="delete-addon" title="Delete">&times;</button>` : ''}
           </div>
         </div>
-        ${hasPricing ? `<div class="drink-margin ${cls}">Cost ${money(a.cost)} &middot; Sell ${money(a.sellPrice)} &middot; ${label} ${money(margin)}</div>` : ''}
+        ${a.sellPrice > 0 ? priceLineHtml(a.id, null, a) : ''}
+        ${isManager() && hasPricing ? `<div class="drink-margin ${cls}">Cost ${money(a.cost)} &middot; Sell ${money(a.sellPrice)} &middot; ${label} ${money(margin)}</div>` : ''}
         <div class="drink-actions">
           <button type="button" class="sell-btn" data-action="sell-addon">Log 1 sold</button>
+          ${isManager() && a.promo ? `<button type="button" class="end-promo-btn" data-action="end-promo-addon">End promotion</button>` : ''}
         </div>
       </div>
     `;
@@ -2128,6 +2310,7 @@
   }
 
   function renderAddons() {
+    renderPriceUpdates();
     const listEl = document.getElementById('addonsList');
     if (addons.length === 0) {
       listEl.innerHTML = '<div class="empty">No add-ons yet. Add one above.</div>';
@@ -2166,7 +2349,10 @@
     const cost = parseFloat(form.cost.value) || 0;
     const sellPrice = parseFloat(form.sellPrice.value) || 0;
 
-    addons.push({ id: uid(), name, qty, cost, sellPrice, soldCount: 0 });
+    if (!isManager()) return;
+    const newAddon = { id: uid(), name, qty, cost, sellPrice, soldCount: 0, promo: null };
+    reconcilePrice(newAddon, null, { kind: 'addon', refId: newAddon.id, name, size: null });
+    addons.push(newAddon);
     saveAddons(addons);
 
     resetAddAddonForm();
@@ -2179,6 +2365,20 @@
   });
 
   document.getElementById('addonsList').addEventListener('click', e => {
+    if (!isManager() && e.target.closest('[data-action="edit-addon"],[data-action="delete-addon"],[data-action="save-addon"],[data-action="end-promo-addon"]')) return;
+    const endAddonPromo = e.target.closest('[data-action="end-promo-addon"]');
+    if (endAddonPromo) {
+      const ad = addons.find(x => x.id === endAddonPromo.closest('.drink').dataset.id);
+      if (ad && ad.promo) {
+        const promoPrice = ad.sellPrice;
+        ad.sellPrice = ad.promo.regularPrice;
+        ad.promo = null;
+        logPriceChange({ kind: 'addon', refId: ad.id, name: ad.name, size: null, type: 'promo-end', oldPrice: promoPrice, newPrice: ad.sellPrice });
+        saveAddons(addons);
+        renderAll();
+      }
+      return;
+    }
     if (e.target.closest('[data-action="cancel-addon"]')) {
       editingAddonId = null;
       renderAddons();
@@ -2194,10 +2394,13 @@
         const qty = parseFloat(formEl.querySelector('[name="qty"]').value);
         const cost = parseFloat(formEl.querySelector('[name="cost"]').value);
         const sellPrice = parseFloat(formEl.querySelector('[name="sellPrice"]').value);
+        if (!isManager()) return;
         if (name) addon.name = name;
         if (!isNaN(qty)) addon.qty = formatQty(Math.max(0, qty));
         addon.cost = isNaN(cost) ? 0 : Math.max(0, cost);
+        const prevAddon = { sellPrice: addon.sellPrice, promo: addon.promo };
         addon.sellPrice = isNaN(sellPrice) ? 0 : Math.max(0, sellPrice);
+        reconcilePrice(addon, prevAddon, { kind: 'addon', refId: addon.id, name: addon.name, size: null });
         saveAddons(addons);
       }
       editingAddonId = null;
@@ -2555,7 +2758,7 @@
   // ================= UNDO =================
 
   document.getElementById('activityLog').addEventListener('click', e => {
-    if (e.target.closest('#undoLastSaleBtn')) undoLastSale();
+    if (isManager() && e.target.closest('#undoLastSaleBtn')) undoLastSale();
   });
 
   // ================= BACKUP =================
@@ -2688,6 +2891,14 @@
   }
 
   function renderScanUnmatchedStep(code) {
+    if (!isManager()) {
+      scanOverlayBody.innerHTML = `
+        <p>This barcode isn't linked to an item yet. Please ask a manager to add or link it.</p>
+        <div class="edit-actions">
+          <button type="button" class="cancel-btn" data-action="close-scan-overlay">Close</button>
+        </div>`;
+      return;
+    }
     const sorted = items.slice().sort((a, b) => a.name.localeCompare(b.name));
     scanOverlayBody.innerHTML = `
       <p>No item matches this barcode yet.</p>
@@ -2856,6 +3067,169 @@
     });
   });
 
+  function renderPriceUpdates() {
+    const el = document.getElementById('priceUpdates');
+    if (priceLog.length === 0) { el.innerHTML = ''; return; }
+    const rows = priceLog.slice(0, 12).map(e => {
+      const name = e.size ? `${escapeHtml(e.name)} (${escapeHtml(e.size)})` : escapeHtml(e.name);
+      const change = e.oldPrice === null ? money(e.newPrice) : `${money(e.oldPrice)} &rarr; ${money(e.newPrice)}`;
+      return `
+        <div class="price-update-row">
+          <div><b>${name}</b><div class="price-update-date">${shortDate(e.ts)} &middot; ${formatTime(e.ts)}</div></div>
+          <div style="text-align:right;">${change}<div><span class="price-badge ${priceTypeClass(e.type)}">${priceTypeLabel(e.type)}</span></div></div>
+        </div>`;
+    }).join('');
+    el.innerHTML = `<div class="add-card"><h2>Price updates</h2>${rows}</div>`;
+  }
+
+  // ================= ROLES (manager PIN) =================
+  // A soft lock: it separates the employee view from the manager view on this
+  // device, but it is not real security (data lives in the browser). See docs.
+
+  async function hashPin(pin) {
+    const salted = 'stockit-salt:' + pin;
+    if (window.crypto && crypto.subtle) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salted));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    let h = 5381;
+    for (let i = 0; i < salted.length; i++) h = ((h << 5) + h + salted.charCodeAt(i)) | 0;
+    return 'x' + h;
+  }
+
+  const MANAGER_PIN_KEY = 'stockit-manager-pin-v1';
+  const ROLE_SESSION_KEY = 'stockit-role-session';
+  const IDLE_LOCK_MS = 10 * 60 * 1000;
+  let idleTimer = null;
+
+  function hasPin() { return !!localStorage.getItem(MANAGER_PIN_KEY); }
+  function isManager() { return !hasPin() || sessionStorage.getItem(ROLE_SESSION_KEY) === 'manager'; }
+
+  function resetIdleTimer() {
+    clearTimeout(idleTimer);
+    if (hasPin() && isManager()) idleTimer = setTimeout(lockManager, IDLE_LOCK_MS);
+  }
+
+  function applyRole() {
+    const mgr = isManager();
+    document.body.classList.toggle('employee', !mgr);
+    document.getElementById('roleBadge').textContent = mgr ? (hasPin() ? 'Manager' : 'Manager (no PIN set)') : 'Employee view';
+    document.getElementById('roleBtn').textContent = mgr ? (hasPin() ? 'Lock' : 'Set manager PIN') : 'Manager login';
+    if (!mgr) {
+      editingId = null; editingDrinkId = null; editingAddonId = null;
+      const active = document.querySelector('.tab-panel.active');
+      if (active && (active.id === 'tab-reports' || active.id === 'tab-backup')) {
+        document.querySelector('.tab-btn[data-tab="ingredients"]').click();
+      }
+    }
+    renderManagerAccess();
+    resetIdleTimer();
+    renderAll();
+  }
+
+  function lockManager() {
+    sessionStorage.removeItem(ROLE_SESSION_KEY);
+    applyRole();
+  }
+
+  // --- PIN dialog ---
+  const pinOverlay = document.getElementById('pinOverlay');
+  const pinInput = document.getElementById('pinInput');
+  const pinInput2 = document.getElementById('pinInput2');
+  const pinError = document.getElementById('pinError');
+  let pinHandler = null;
+
+  function openPinDialog({ title, message, confirmField, onSubmit }) {
+    document.getElementById('pinTitle').textContent = title;
+    document.getElementById('pinMessage').textContent = message || '';
+    pinInput.value = '';
+    pinInput2.value = '';
+    pinInput2.style.display = confirmField ? 'block' : 'none';
+    pinError.textContent = '';
+    pinHandler = onSubmit;
+    pinOverlay.classList.add('active');
+    setTimeout(() => pinInput.focus(), 50);
+  }
+
+  function closePinDialog() {
+    pinOverlay.classList.remove('active');
+    pinHandler = null;
+  }
+
+  document.getElementById('pinCancelBtn').addEventListener('click', closePinDialog);
+  document.getElementById('pinOkBtn').addEventListener('click', async () => {
+    if (!pinHandler) return;
+    const err = await pinHandler(pinInput.value, pinInput2.value);
+    if (err) pinError.textContent = err; else closePinDialog();
+  });
+  [pinInput, pinInput2].forEach(inp => inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('pinOkBtn').click();
+  }));
+
+  function validNewPin(pin, pin2) {
+    if (!/^\d{4,12}$/.test(pin)) return 'PIN must be 4 to 12 digits.';
+    if (pin !== pin2) return 'The two PINs do not match.';
+    return null;
+  }
+
+  function startSetPin() {
+    openPinDialog({
+      title: hasPin() ? 'Change manager PIN' : 'Set manager PIN',
+      message: 'Choose 4 to 12 digits. Employees will not be able to open manager features without it.',
+      confirmField: true,
+      onSubmit: async (pin, pin2) => {
+        const bad = validNewPin(pin, pin2);
+        if (bad) return bad;
+        localStorage.setItem(MANAGER_PIN_KEY, await hashPin(pin));
+        sessionStorage.setItem(ROLE_SESSION_KEY, 'manager');
+        applyRole();
+        return null;
+      },
+    });
+  }
+
+  function startLogin() {
+    openPinDialog({
+      title: 'Manager login',
+      message: 'Enter the manager PIN.',
+      confirmField: false,
+      onSubmit: async (pin) => {
+        if ((await hashPin(pin)) !== localStorage.getItem(MANAGER_PIN_KEY)) return 'Incorrect PIN.';
+        sessionStorage.setItem(ROLE_SESSION_KEY, 'manager');
+        applyRole();
+        return null;
+      },
+    });
+  }
+
+  document.getElementById('roleBtn').addEventListener('click', () => {
+    if (!hasPin()) startSetPin();
+    else if (isManager()) lockManager();
+    else startLogin();
+  });
+
+  function renderManagerAccess() {
+    const el = document.getElementById('managerAccessBody');
+    if (!el) return;
+    el.innerHTML = `
+      <div style="color:var(--muted); font-size:0.8rem; margin-bottom:10px; line-height:1.4;">${hasPin()
+        ? 'A manager PIN is set on this device. Staff see the employee view until the PIN is entered. The view locks again after 10 minutes of inactivity.'
+        : 'No PIN set: everyone on this device has manager access. Set a PIN to switch this device to the employee view.'}</div>
+      <button type="button" id="setPinBtn" style="width:100%; background:var(--accent); color:#fff; border:none; padding:11px; border-radius:8px; font-size:1rem; cursor:pointer;">${hasPin() ? 'Change PIN' : 'Set manager PIN'}</button>
+      ${hasPin() ? '<button type="button" id="removePinBtn" class="cancel-btn" style="width:100%; margin-top:8px; padding:11px;">Remove PIN (everyone becomes manager)</button>' : ''}
+    `;
+    document.getElementById('setPinBtn').addEventListener('click', startSetPin);
+    const rm = document.getElementById('removePinBtn');
+    if (rm) rm.addEventListener('click', () => {
+      if (confirm('Remove the manager PIN? Anyone using this device will have full manager access.')) {
+        localStorage.removeItem(MANAGER_PIN_KEY);
+        applyRole();
+      }
+    });
+  }
+
+  ['click', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, resetIdleTimer, { passive: true }));
+
   function renderAll() {
     renderItems();
     renderDrinks();
@@ -2864,7 +3238,7 @@
   }
 
   document.querySelector('input[name="receivedDate"]').value = todayStr();
-  renderAll();
+  applyRole();
   initSyncIfNeeded();
 
   if ('serviceWorker' in navigator) {
